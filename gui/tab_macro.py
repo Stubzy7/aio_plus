@@ -6,15 +6,6 @@ from core.state import state
 
 
 def _build_guided_events(action: str, count: int, drop_key: str = "g") -> list[dict]:
-    """Build grid events for Take or Popcorn guided macros.
-
-    Generates events for *count* inventory slots in a 6×6 grid
-    using STORAGE grid coords from state (right side of screen).
-    Counts >36 loop the grid.
-
-    Take = M (move) + C (click) + K (press T)  — has clicks
-    Popcorn = M (move) + K (press drop key)     — NO clicks
-    """
     start_x = int(state.pc_start_slot_x)
     start_y = int(state.pc_start_slot_y)
     slot_w = int(state.pc_slot_w)
@@ -39,7 +30,6 @@ def _build_guided_events(action: str, count: int, drop_key: str = "g") -> list[d
                                    "x": x, "y": y, "delay": 100})
                     events.append({"type": "K", "dir": "p", "key": "t", "delay": 60})
                 else:
-                    # Popcorn: move + drop key, NO click
                     events.append({"type": "K", "dir": "p", "key": drop_key, "delay": 20})
             if slot > remaining or slot > grid_size:
                 break
@@ -48,13 +38,11 @@ def _build_guided_events(action: str, count: int, drop_key: str = "g") -> list[d
 
 
 class TabMacro:
-    """Builds the Macro tab UI inside the given parent frame."""
 
     def __init__(self, parent_frame: ttk.Frame, state: dict):
         self.parent = parent_frame
         self.state = state
 
-        # ── Top row: creation buttons ────────────────────────
         self.guided_btn = tk.Button(
             parent_frame, text="+ Guided", font=FONT_BOLD, fg=FG_ACCENT,
             bg=BG_DARK, activebackground=BG_DARK, activeforeground=FG_ACCENT,
@@ -83,7 +71,6 @@ class TabMacro:
         )
         self.help_btn.place(x=416, y=3, width=26, height=26)
 
-        # ── ListView (Treeview) ──────────────────────────────
         tree_style = ttk.Style()
         tree_style.configure(
             "Macro.Treeview",
@@ -115,7 +102,6 @@ class TabMacro:
         self.tree.column("speed", width=155)
         self.tree.place(x=12, y=35, width=425, height=180)
 
-        # ── Bottom row: action buttons ───────────────────────
         btn_y = 221
 
         self.play_btn = tk.Button(
@@ -160,7 +146,6 @@ class TabMacro:
         )
         self.move_down_btn.place(x=410, y=btn_y, width=26, height=26)
 
-        # ── Status / help text ───────────────────────────────
         self.status_line1 = tk.Label(
             parent_frame,
             text="F3/Start to arm  |  F at inventory  |  Q: single/swap  |  Z: next/exit",
@@ -175,11 +160,7 @@ class TabMacro:
         )
         self.status_line2.place(x=12, y=269, width=425, height=14)
 
-    # ------------------------------------------------------------------
-    # Public helpers
-    # ------------------------------------------------------------------
     def populate(self, macros: list[dict]):
-        """Fill the treeview from a list of macro dicts and auto-select."""
         self.tree.delete(*self.tree.get_children())
         for m in macros:
             self.tree.insert(
@@ -191,7 +172,6 @@ class TabMacro:
                     m.get("speed", ""),
                 ),
             )
-        # Auto-select based on state.macro_selected_idx (1-based)
         children = self.tree.get_children()
         if children:
             idx = getattr(state, "macro_selected_idx", 1) - 1
@@ -200,22 +180,17 @@ class TabMacro:
             self.tree.see(children[idx])
 
     def get_selected_index(self) -> int | None:
-        """Return the index of the selected row, or None."""
         sel = self.tree.selection()
         if not sel:
             return None
         return self.tree.index(sel[0])
 
-    # ------------------------------------------------------------------
-    # Dialog helpers
-    # ------------------------------------------------------------------
     def _make_dlg(self, title: str, w: int = 280, h: int = 250) -> tk.Toplevel:
         dlg = tk.Toplevel(self.parent)
         dlg.title(title)
         dlg.configure(bg=BG_DARK)
         dlg.attributes("-topmost", True)
         dlg.resizable(False, False)
-        # Center on screen
         sx = dlg.winfo_screenwidth()
         sy = dlg.winfo_screenheight()
         x = (sx - w) // 2
@@ -228,23 +203,38 @@ class TabMacro:
                        "super_l", "super_r", "f1", "f2", "f3"}
 
     def _detect_key_into(self, dlg: tk.Toplevel, entry: tk.Entry):
-        """Bind next key press to fill an entry widget, with excluded-key filtering."""
         entry.delete(0, tk.END)
-        entry.insert(0, "Press key...")
+        entry.insert(0, "Press key/click...")
+        bind_ids = []
+
+        def _cleanup():
+            for ev, bid in bind_ids:
+                try:
+                    dlg.unbind(ev, bid)
+                except Exception:
+                    pass
+
         def on_key(event):
             k = event.keysym.lower()
             if k in self._bind_excluded:
                 return
             entry.delete(0, tk.END)
             entry.insert(0, k)
-            dlg.unbind("<Key>", bid)
-        bid = dlg.bind("<Key>", on_key)
+            _cleanup()
 
-    # ------------------------------------------------------------------
-    # + Key Repeat dialog
-    # ------------------------------------------------------------------
+        def on_mouse(event):
+            btn_map = {1: "lbutton", 2: "mbutton", 3: "rbutton"}
+            name = btn_map.get(event.num, f"mouse{event.num}")
+            entry.delete(0, tk.END)
+            entry.insert(0, name)
+            _cleanup()
+
+        bind_ids.append(("<Key>", dlg.bind("<Key>", on_key)))
+        bind_ids.append(("<Button-1>", dlg.bind("<Button-1>", on_mouse)))
+        bind_ids.append(("<Button-2>", dlg.bind("<Button-2>", on_mouse)))
+        bind_ids.append(("<Button-3>", dlg.bind("<Button-3>", on_mouse)))
+
     def _repeat_new(self):
-        """Open the Key Repeat macro creation dialog."""
         dlg = self._make_dlg("New Key Repeat", 270, 240)
         key_list: list[str] = []
 
@@ -367,11 +357,7 @@ class TabMacro:
         tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR, bg=BG_COLOR,
                   command=dlg.destroy).place(x=120, y=202, width=100, height=26)
 
-    # ------------------------------------------------------------------
-    # + Guided wizard
-    # ------------------------------------------------------------------
     def _guided_start(self):
-        """Open the Guided Macro wizard (multi-step)."""
         wizard_data = {"inv_type": "vault", "action_type": "take"}
 
         def _step1():
@@ -447,7 +433,6 @@ class TabMacro:
                       bg=BG_COLOR, command=dlg.destroy).place(x=185, y=130, width=80, height=26)
 
         def _step_drop_key_prompt():
-            """Confirm/set the drop key before proceeding to popcorn setup."""
             dlg = self._make_dlg("Guided Macro \u2014 Drop Key", 300, 170)
             tk.Label(dlg, text="Confirm Drop Key", bg=BG_DARK, fg=FG_ACCENT,
                      font=FONT_BOLD).place(x=15, y=10, width=270)
@@ -480,10 +465,6 @@ class TabMacro:
                       bg=BG_COLOR, command=dlg.destroy).place(x=205, y=110, width=80, height=26)
 
         def _step_give_setup():
-            """Give action setup: item count, filter, name.
-
-            Generates events using player-side grid, skips slot 1 when no filter.
-            """
             dlg = self._make_dlg("Guided Macro \u2014 Give Setup", 320, 250)
             tk.Label(dlg, text="Give Setup", bg=BG_DARK, fg=FG_ACCENT,
                      font=FONT_BOLD).place(x=15, y=10, width=280)
@@ -518,9 +499,6 @@ class TabMacro:
                 has_filter = bool(filt)
                 skip_first = not has_filter
 
-                # Build events using PLAYER grid (left side)
-                # Give = M (move) + C (click) + K (press T) per slot
-                # Remaining-loop with implant skip
                 events = []
                 remaining = count
                 while remaining > 0:
@@ -573,7 +551,6 @@ class TabMacro:
                       bg=BG_COLOR, command=dlg.destroy).place(x=185, y=175, width=80, height=26)
 
         def _step_setup():
-            """Take/Popcorn setup: item count, filter, name."""
             action = wizard_data["action_type"]
             title = "Take Setup" if action == "take" else "Popcorn Setup"
             dlg = self._make_dlg(f"Guided Macro \u2014 {title}", 320, 230)
@@ -620,7 +597,6 @@ class TabMacro:
                     return
                 count = int(count_edit.get() or default_count)
                 filt = filter_edit.get().strip()
-                # Build events: grid clicks + key presses
                 events = _build_guided_events(
                     action, count,
                     drop_key=drop_edit.get().strip() if drop_edit else "g",
@@ -653,7 +629,6 @@ class TabMacro:
                       bg=BG_COLOR, command=dlg.destroy).place(x=185, y=btn_y, width=80, height=26)
 
         def _step_record_filters():
-            """Record mode: ask for filter count then names."""
             dlg = self._make_dlg("Guided Macro \u2014 Filters", 320, 180)
             tk.Label(dlg, text="How many search filters?", bg=BG_DARK,
                      fg=FG_ACCENT, font=FONT_BOLD).place(x=15, y=15, width=280)
@@ -730,7 +705,6 @@ class TabMacro:
                     return
                 wizard_data["name"] = n
                 dlg.destroy()
-                # Start recording via macro_system
                 from modules.macro_system import macro_start_guided_record
                 if hasattr(macro_start_guided_record, '__call__'):
                     macro_start_guided_record(
@@ -750,7 +724,6 @@ class TabMacro:
         _step1()
 
     def _on_record_done(self, macro_dict: dict):
-        """Called when guided recording completes — shows save dialog."""
         if macro_dict and macro_dict.get("events"):
             wizard_data = {
                 "name": macro_dict.get("name", ""),
@@ -761,11 +734,7 @@ class TabMacro:
                 state.root.after(0, lambda: self._guided_show_save_dialog(
                     wizard_data, macro_dict.get("events", [])))
 
-    # ------------------------------------------------------------------
-    # + Popcorn+Magic-F combo wizard
-    # ------------------------------------------------------------------
     def _combo_start(self):
-        """Open the Combo (Popcorn+MagicF) wizard."""
         combo_data: dict = {}
 
         def _step_pc_count():
@@ -1004,24 +973,22 @@ class TabMacro:
             self.parent)
 
     def _play_selected(self):
-        """Arm the selected macro for playback."""
         idx = self.get_selected_index()
         if idx is None:
             return
         from modules.macro_system import macro_play_selected
-        state.macro_selected_idx = idx + 1  # 1-based
+        state.macro_selected_idx = idx + 1
         macro_play_selected()
         if state.macro_armed and state.main_gui:
             state.main_gui.hide()
 
     def _tune_selected(self):
-        """Start binary-search speed tuning for the selected macro."""
         idx = self.get_selected_index()
         if idx is None or idx >= len(state.macro_list):
             return
         m = state.macro_list[idx]
         if m["type"] not in ("recorded", "guided", "pyro"):
-            return  # Only speed-based macros can be tuned
+            return
 
         from modules.macro_system import macro_save_all
         import threading
@@ -1078,16 +1045,13 @@ class TabMacro:
                 from gui.tooltip import show_tooltip
                 show_tooltip(f" Tuning done: {m['name']} = {tune_high:.2f}x", 0, 0)
                 return
-            # Play at current speed then ask
             orig = m.get("speed_mult", 1.0)
             m["speed_mult"] = tune_current
             from gui.tooltip import show_tooltip
             show_tooltip(f" TUNING: {m['name']}\n Speed: {tune_current:.2f}x (run {iteration[0]+1})\n Playing...", 0, 0)
             from modules.macro_system import macro_play_by_index
-            # Play then show dialog after
             def _play_and_ask():
                 macro_play_by_index(idx + 1)
-                # Wait for playback to finish
                 while state.macro_playing:
                     import time
                     time.sleep(0.1)
@@ -1101,7 +1065,6 @@ class TabMacro:
         _run_next()
 
     def _edit_selected(self):
-        """Open the edit dialog for the selected macro."""
         idx = self.get_selected_index()
         if idx is None or idx >= len(state.macro_list):
             return
@@ -1116,7 +1079,6 @@ class TabMacro:
             self._edit_speed_macro(m)
 
     def _edit_repeat(self, m: dict):
-        """Edit dialog for Key Repeat macros."""
         from modules.macro_system import macro_save_all
         dlg = self._make_dlg("Edit Key Repeat", 270, 240)
         key_list = list(m.get("repeat_keys", []))
@@ -1237,7 +1199,6 @@ class TabMacro:
                   command=dlg.destroy).place(x=120, y=196, width=100, height=26)
 
     def _edit_speed_macro(self, m: dict):
-        """Edit dialog for Recorded/Pyro/Guided macros (name, hotkey, speed, loop)."""
         from modules.macro_system import macro_save_all
         is_guided = m["type"] == "guided"
         dlg = self._make_dlg(f"Edit {m['type'].capitalize()} Macro", 300,
@@ -1333,11 +1294,6 @@ class TabMacro:
             dlg.destroy()
 
         def _re_record():
-            """Re-record events while preserving macro settings.
-
-            Re-record while preserving macro settings.
-            """
-            # Save current dialog values first
             _save_fields_to_macro()
             dlg.destroy()
             self._guided_re_record(m)
@@ -1372,7 +1328,6 @@ class TabMacro:
                       ).place(x=100, y=btn_y, width=100, height=26)
 
     def _edit_combo(self, m: dict):
-        """Edit dialog for Combo macros (popcorn + magic f filters)."""
         from modules.macro_system import macro_save_all
         dlg = self._make_dlg("Edit Combo Macro", 340, 250)
 
@@ -1436,31 +1391,19 @@ class TabMacro:
                   command=dlg.destroy).place(x=120, y=215, width=100, height=26)
 
     def _guided_re_record(self, m: dict):
-        """Re-record a guided macro's events while preserving settings.
-
-        Analyzes existing events to detect mode (take/give/popcorn), then either
-        shows a setup dialog for structured modes or starts a raw recording session.
-        """
         from modules.macro_system import macro_save_all
 
-        # Detect mode from existing events
         events = m.get("events", [])
         is_give = bool(m.get("player_search", 0))
         has_t_key = any(e.get("type") == "K" and e.get("key") == "t" for e in events)
         has_drop_key = any(e.get("type") == "K" and e.get("key") == state.pc_drop_key for e in events)
 
         if has_t_key or has_drop_key or is_give:
-            # Structured mode: show setup dialog
             self._guided_re_record_setup(m)
         else:
-            # Raw recording mode
             self._guided_re_record_raw(m)
 
     def _guided_re_record_setup(self, m: dict):
-        """Setup dialog for re-recording a structured guided macro.
-
-        Shows count/filter inputs before re-recording.
-        """
         from modules.macro_system import macro_save_all
 
         is_give = bool(m.get("player_search", 0))
@@ -1474,7 +1417,6 @@ class TabMacro:
         else:
             mode_label = "Take"
 
-        # Count current slots (M+K pairs)
         slot_count = sum(1 for e in events if e.get("type") == "M")
 
         dlg = self._make_dlg(f"Re-record {mode_label}", 320, 220)
@@ -1517,7 +1459,6 @@ class TabMacro:
             skip_first = is_give and not filt
 
             if is_give:
-                # Player-side grid
                 new_events = []
                 cols = 6
                 slot_idx = 0
@@ -1531,7 +1472,6 @@ class TabMacro:
                     new_events.append({"type": "K", "dir": "p", "key": "t", "delay": 20})
                     slot_idx += 1
             else:
-                # Storage-side grid
                 dk = drop_edit.get().strip() if drop_edit else "t"
                 if mode_label == "Take":
                     dk = "t"
@@ -1553,11 +1493,6 @@ class TabMacro:
                   command=dlg.destroy).place(x=120, y=170, width=100, height=26)
 
     def _guided_re_record_raw(self, m: dict):
-        """Start a raw re-recording session for a guided macro.
-
-        Records new events while preserving all macro settings.
-        Records new events while preserving all macro settings.
-        """
         from modules.macro_system import (macro_start_guided_record,
                                           macro_save_all)
         macro_idx = None
@@ -1585,10 +1520,6 @@ class TabMacro:
             state.main_gui.hide()
 
     def _guided_show_save_dialog(self, wizard_data: dict, events: list):
-        """Save dialog for recorded guided macros with turbo/settle/mouse options.
-
-        Save dialog with turbo/settle/mouse options for recorded guided macros.
-        """
         from modules.macro_system import (macro_save_all,
                                           _guided_clean_recorded_events)
 
@@ -1699,7 +1630,6 @@ class TabMacro:
         dlg.protocol("WM_DELETE_WINDOW", _discard)
 
     def _delete_selected(self):
-        """Delete the selected macro after confirmation. Pyro macros are protected."""
         idx = self.get_selected_index()
         if idx is None or idx >= len(state.macro_list):
             return
@@ -1716,7 +1646,6 @@ class TabMacro:
         self._refresh_list()
 
     def _move_up(self):
-        """Move the selected macro up one position."""
         idx = self.get_selected_index()
         if idx is None or idx <= 0:
             return
@@ -1726,13 +1655,11 @@ class TabMacro:
         )
         macro_save_all()
         self._refresh_list()
-        # Re-select the moved item
         children = self.tree.get_children()
         if idx - 1 < len(children):
             self.tree.selection_set(children[idx - 1])
 
     def _move_down(self):
-        """Move the selected macro down one position."""
         idx = self.get_selected_index()
         if idx is None or idx >= len(state.macro_list) - 1:
             return
@@ -1742,13 +1669,11 @@ class TabMacro:
         )
         macro_save_all()
         self._refresh_list()
-        # Re-select the moved item
         children = self.tree.get_children()
         if idx + 1 < len(children):
             self.tree.selection_set(children[idx + 1])
 
     def _refresh_list(self):
-        """Rebuild the treeview from state.macro_list."""
         macros = []
         for m in state.macro_list:
             speed = ""
