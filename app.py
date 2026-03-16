@@ -7,7 +7,6 @@ import tkinter as tk
 
 from pal import system as _sys
 
-# Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.state import state
@@ -20,7 +19,6 @@ from gui.tooltip import TooltipManager
 from gui.tray import TrayManager
 from input.window import win_exist, win_move, win_get_pos
 
-# Module imports
 from modules import (
     magic_f, popcorn, sheep, auto_level, ob_upload, ob_download,
     quick_hatch, name_spay, auto_craft, overcap, autoclicker,
@@ -30,7 +28,6 @@ from modules import (
 
 
 class AIOApp:
-    """Main application class."""
 
     def __init__(self):
         self.root: tk.Tk | None = None
@@ -41,23 +38,16 @@ class AIOApp:
         self._mutex = None
 
     def run(self):
-        """Start the application."""
-        # Single instance check
         if not self._acquire_mutex():
             _sys.message_box("AIO is already running!")
             sys.exit(1)
 
-        # Check resolution warnings
         for warning in check_resolution():
             print(f"Warning: {warning}")
 
-        # Ensure INI defaults exist
         ensure_defaults()
-
-        # Load config values
         self._load_config()
 
-        # Detect ARK
         ark_hwnd = win_exist("ArkAscended")
         if ark_hwnd:
             state.ark_running = True
@@ -68,18 +58,14 @@ class AIOApp:
             state.game_height = gh
             self._init_joinsim_offsets()
         else:
-            # Show warning but don't exit — allow UI to open
             _sys.message_box("Ark Not Detected.\nStart ARK then restart AIO.")
 
-        # Validate resolution / aspect ratio
         for warn in check_resolution():
             _sys.message_box(warn, "GG AIO — Resolution")
 
-        # Build GUI
         self.root = tk.Tk()
         state.root = self.root
 
-        # High-precision timer for popcorn
         _sys.begin_timer_period(1)
 
         self.main_window = MainWindow(self.root)
@@ -94,37 +80,28 @@ class AIOApp:
         self.tray.start()
         self.tray.notify("GG AIO", "AIO is running")
 
-        # Build tab contents
         self._build_tabs()
 
-        # Set up hotkey manager
         self.hotkeys = HotkeyManager(self.root)
         state._hotkey_mgr = self.hotkeys
         self._register_hotkeys()
         self.hotkeys.start()
 
-        # Tab change handler
         self.main_window.set_tab_change_callback(self._on_tab_change)
 
-        # Load lists
         self._load_lists()
 
-        # Load auto-pin settings
         auto_pin.pin_load_settings()
 
-        # Start main loop
         self.root.mainloop()
 
-        # Cleanup
         self._cleanup()
 
     def _acquire_mutex(self) -> bool:
-        """Acquire a named mutex for single-instance enforcement."""
         self._mutex, ok = _sys.acquire_mutex()
         return ok
 
     def _init_joinsim_offsets(self):
-        """Compute JoinSim fractional offsets from game window dimensions."""
         gw = state.game_width
         gh = state.game_height
         state.back_offset_x = int(0.0859375 * gw)
@@ -150,7 +127,6 @@ class AIOApp:
         state.mod_join_offset_x = int(0.28125 * gw)
         state.mod_join_offset_y = int(0.86388888888888893 * gh)
 
-        # --- State detection tables (pixel x/y as fractional × game dims) ---
         def _gx(f):
             return int(f * gw)
 
@@ -237,25 +213,19 @@ class AIOApp:
         ]
 
     def _load_config(self):
-        """Load configuration from INI file."""
-        # Timings
         state.mf_search_bar_click_ms = read_ini_int("Timings", "SearchBarClickMs", 30)
         state.mf_filter_settle_ms = read_ini_int("Timings", "FilterSettleMs", 100)
         state.mf_transfer_settle_ms = read_ini_int("Timings", "TransferSettleMs", 100)
 
-        # NTFY
         ntfy = read_ini("ntfy", "key")
         state.ntfy_key = "" if ntfy == "Default" else ntfy
 
-        # INI command key
         cmd_key = read_ini("ini", "commandkey")
         state.ini_command_key = "{vkC0}" if cmd_key == "Default" else cmd_key
 
-        # Custom command
         custom = read_ini("ini", "customcommand")
         state.ini_custom_command = "" if custom == "Default" else custom
 
-        # Popcorn keys — load from INI (empty until user sets them)
         inv_key = read_ini("Popcorn", "InvKey", "")
         if inv_key:
             state.pc_inv_key = inv_key
@@ -263,7 +233,6 @@ class AIOApp:
         if drop_key:
             state.pc_drop_key = drop_key
 
-        # Popcorn speed + timings
         state.pc_speed_mode = read_ini_int("Popcorn", "SpeedMode", 1)
         popcorn.pc_apply_speed()
         ds = read_ini("Popcorn", "DropSleep")
@@ -279,10 +248,8 @@ class AIOApp:
         if cf != "Default":
             state.pc_custom_filter = cf
 
-        # Popcorn scan area
         popcorn.pc_load_scan_area()
 
-        # Sheep keys
         toggle = read_ini("Sheep", "ToggleKey")
         if toggle != "Default":
             state.sheep_toggle_key = toggle
@@ -291,7 +258,6 @@ class AIOApp:
             state.sheep_overcap_key = oc
         inv = read_ini("Sheep", "InventoryKey", "")
         if not inv:
-            # Fall back to shared Popcorn InvKey
             inv = read_ini("Popcorn", "InvKey", "")
         if inv:
             state.sheep_inventory_key = inv
@@ -299,39 +265,32 @@ class AIOApp:
         if alvl != "Default":
             state.sheep_auto_lvl_key = alvl
 
-        # Imprint — scan area, inventory key, hide overlay
         try:
             from modules.auto_imprint import imprint_load_config
             imprint_load_config()
         except Exception:
             pass
 
-        # NVIDIA Filter
         state.nf_enabled = read_ini_bool("NVIDIAFilter", "Enabled", False)
 
-        # OB Download OCR regions
         try:
             ob_download.ob_ocr_load_config()
         except Exception:
             pass
 
-        # Auto Craft OCR scan area
         try:
             from modules.auto_craft import ac_ocr_load_config
             ac_ocr_load_config()
         except Exception:
             pass
 
-        # Craft settings
         state.ac_extra_clicks = read_ini_int("Craft", "ExtraClicks", 0)
 
-        # Grid settings
         state.ac_grid_cols = read_ini_int("Grid", "Cols", 1)
         state.ac_grid_rows = read_ini_int("Grid", "Rows", 11)
         state.ac_grid_hwalk = read_ini_int("Grid", "HWalk", 0)
         state.ac_grid_vwalk = read_ini_int("Grid", "VWalk", 850)
 
-        # Hatch settings
         state.qh_mode = read_ini_int("Hatch", "HatchMode", 0)
         state.cn_enabled = read_ini_bool("Hatch", "ClaimNameEnabled", False)
         state.ns_enabled = read_ini_bool("Hatch", "NameSpayEnabled", False)
@@ -341,7 +300,6 @@ class AIOApp:
             state.dino_name = dino
 
     def _build_tabs(self):
-        """Initialize tab content (import and instantiate tab builders)."""
         from gui.tab_joinsim import TabJoinSim
         from gui.tab_magicf import TabMagicF
         from gui.tab_autolvl import TabAutoLvl
@@ -367,80 +325,57 @@ class AIOApp:
         state._tab_misc = self.tab_misc
 
     def _register_hotkeys(self):
-        """Register all global hotkeys."""
         hk = self.hotkeys
 
-        # F1 — Show/Hide UI + Stop All
         hk.register("f1", self._f1_handler, suppress=True)
 
-        # F2 — Overcap toggle
         hk.register("f2", lambda: overcap.toggle_overcap_script(),
                      suppress=True)
 
-        # F3 — Macro play (if macro tab) or Quick Feed cycle
         hk.register("f3", self._f3_handler, suppress=True)
 
-        # F4 — Exit
         hk.register("f4", lambda: self.root.after(0, self._on_quit), suppress=True)
 
-        # F5 — Apply INI
         hk.register("f5", self._apply_ini, suppress=True)
 
-        # F6 — OB Upload cycle
         hk.register("f6", lambda: ob_upload.ob_upload_cycle(), suppress=True)
 
-        # F7 — OB Download
         hk.register("f7", lambda: ob_download.ob_download_cycle(),
                      suppress=True)
 
-        # F8 — Mammoth Drums (passthrough)
         hk.register("f8", lambda: mammoth_drums.toggle_mammoth_script(),
                      suppress=False, passthrough=True)
 
-        # F9 — Autoclicker
         hk.register("f9", lambda: autoclicker.toggle_autoclicker(),
                      suppress=True)
 
-        # F10 — Quick Popcorn cycle
         hk.register("f10", lambda: popcorn.pc_f10_cycle(), suppress=True)
 
-        # F11 — Debug panel (suppress so ARK doesn't toggle fullscreen)
         hk.register("f11", lambda: debug_panel.show_debug_panel(),
                      suppress=True, passthrough=False)
 
-        # F12 — Grab My Kit
         hk.register("f12", lambda: grab_my_kit.gmk_toggle(), suppress=True)
 
-        # F key — Main action key (routes based on active mode)
         hk.register("f", self._f_handler, suppress=False, passthrough=True)
 
-        # Z key — Context-dependent
         hk.register("z", self._z_handler, suppress=False, passthrough=True)
 
-        # Q key — Context-dependent
         hk.register("q", self._q_handler, suppress=False, passthrough=True)
 
-        # E key — Auto Pin / Name+Spay
         hk.register("e", self._e_handler, suppress=False, passthrough=True)
 
-        # R key — Imprint read & process
         hk.register("r", self._r_handler, suppress=False, passthrough=True)
 
-        # Bracket keys — Speed adjustment
         hk.register("[", self._bracket_left, suppress=False, passthrough=True)
         hk.register("]", self._bracket_right, suppress=False, passthrough=True)
 
     def _f1_handler(self):
-        """F1: If GUI hidden → stop flags + show GUI. If visible → hide GUI."""
         if not self.main_window:
             return
         if not state.gui_visible:
-            # Only set stop flags — do NOT call module stop functions
-            # that might send input to the game
             self._stop_flags()
             state.gui_visible = True
             self.main_window.show()
-            # Reset button text for modules stopped by _stop_flags
             try:
                 if hasattr(self, "tab_misc"):
                     self.tab_misc.imprint_start_btn.configure(text="Start")
@@ -457,26 +392,20 @@ class AIOApp:
             self.main_window.hide()
 
     def _f3_handler(self):
-        """F3: If macro tab active → play/disarm selected macro. Else → quick feed."""
         if state.macro_tab_active and state.gui_visible:
-            # Sync selected macro from treeview before arming
             tab = getattr(state, "_tab_macro", None)
             if tab:
                 idx = tab.get_selected_index()
                 if idx is not None:
-                    state.macro_selected_idx = idx + 1  # 1-based
+                    state.macro_selected_idx = idx + 1
             macro_system.macro_play_selected()
         elif state.macro_armed or state.macro_playing:
-            # Disarm/stop if macro is active
             macro_system.macro_stop_play()
         else:
             quick_feed.quick_feed_cycle()
 
     def _stop_flags(self):
-        """Set all stop flags WITHOUT calling module functions.
-
-        Safe to call while ARK is focused — no mouse/keyboard input is sent.
-        """
+        # Safe to call while ARK is focused -- no mouse/keyboard input sent.
         state.run_magic_f_script = False
         state.magic_f_preset_idx = 1
         state.pc_early_exit = True
@@ -506,7 +435,6 @@ class AIOApp:
         state.quick_feed_mode = 0
         state.autoclicking = False
         state.gmk_mode = "off"
-        # Additional flags reset by F1
         state.depo_eggs_active = False
         state.depo_embryo_active = False
         state.depo_cycle.clear()
@@ -518,15 +446,11 @@ class AIOApp:
         state.imprint_scanning = False
         state.imprint_auto_mode = False
         state.auto_sim_check = False
-        state.pc_tooltip_gen += 1      # cancel any queued popcorn tooltips
+        state.pc_tooltip_gen += 1
         if self.tooltips:
             self.tooltips.hide_all()
 
     def _stop_all(self):
-        """Stop all active automation — calls module stop functions.
-
-        Only safe to call when we're ready to send input to the game.
-        """
         magic_f.stop_magic_f()
         popcorn.stop_popcorn()
         sheep.sheep_stop_script()
@@ -542,7 +466,6 @@ class AIOApp:
         self._stop_flags()
 
     def _f_handler(self):
-        """Route F key press to the active module."""
         if state.run_magic_f_script:
             magic_f.magic_f_pressed_async()
         elif (state.pc_mode > 0
@@ -556,7 +479,6 @@ class AIOApp:
         elif state.ac_simple_armed:
             auto_craft.ac_do_simple_craft()
         elif state.ac_timed_armed and not state.ac_running:
-            # First F press — launch timed loop
             state.ac_timed_armed = False
             state.ac_running = True
             state.ac_timed_f_pressed = False
@@ -564,10 +486,8 @@ class AIOApp:
             auto_craft.craft_log("F pressed — Inventory Timed armed, launching loop")
             threading.Thread(target=auto_craft.ac_timed_loop, daemon=True).start()
         elif state.ac_running and not state.ac_grid_armed:
-            # Subsequent F during timed loop
             state.ac_timed_f_pressed = True
         elif state.ac_grid_armed:
-            # First F press — launch grid loop
             state.ac_grid_armed = False
             state.ac_grid_running = True
             state.ac_running = True
@@ -580,7 +500,6 @@ class AIOApp:
             threading.Thread(target=auto_craft.ac_grid_loop,
                              args=(c, r, hw, vw), daemon=True).start()
         elif (state.depo_eggs_active or state.depo_embryo_active) and state.depo_cycle:
-            # Depo cycle active — check if current step is depo or hatch
             idx = state.depo_cycle_idx
             if 1 <= idx <= len(state.depo_cycle) and state.depo_cycle[idx - 1]["filter"]:
                 threading.Thread(target=quick_hatch.depo_f_pressed, daemon=True).start()
@@ -601,15 +520,15 @@ class AIOApp:
         elif state.gmk_mode != "off":
             grab_my_kit.gmk_f_pressed()
         elif state.macro_armed or state.combo_armed:
-            macro_system._macro_hotkey_handler(state.macro_selected_idx)
+            sel = state.macro_list[state.macro_selected_idx - 1] if state.macro_list else {}
+            if sel.get("hotkey", "").lower() == "f":
+                macro_system._macro_hotkey_handler(state.macro_selected_idx)
 
     def _z_handler(self):
-        """Route Z key press to the active module."""
         if state.run_magic_f_script:
             if state.magic_f_refill_mode:
-                return  # blocked in refill mode
+                return
             magic_f.magic_f_swap_direction()
-            # Swap GUI give↔take checkboxes
             mf = self.tab_magicf
             root = self.root
             if mf and root:
@@ -622,7 +541,6 @@ class AIOApp:
                             g, t = gv.get(), tv.get()
                             gv.set(t)
                             tv.set(g)
-                    # Swap custom checkboxes and combo text
                     gc, tc = mf.give_custom_var.get(), mf.take_custom_var.get()
                     mf.give_custom_var.set(tc)
                     mf.take_custom_var.set(gc)
@@ -631,16 +549,13 @@ class AIOApp:
                     mf.give_custom_combo.set(tt)
                     mf.take_custom_combo.set(gt)
                 root.after(0, _swap_gui)
-            # Update tooltip
             from gui.tooltip import show_tooltip
             show_tooltip(magic_f.magic_f_build_tooltip(), 0, 0)
         elif state.pc_tab_active or state.pc_mode > 0:
             popcorn.pc_cycle_speed()
             name = state.pc_speed_names.get(state.pc_speed_mode, "Fast")
-            # Update speed label on Popcorn tab (needs main thread)
             if self.tab_popcorn and self.root:
                 self.root.after(0, lambda n=name: self.tab_popcorn.speed_txt.configure(text=f"{n} [Z]"))
-            # Update tooltip — show_tooltip already marshals to main thread
             from gui.tooltip import show_tooltip
             if state.pc_f10_step == 1:
                 show_tooltip(
@@ -658,24 +573,21 @@ class AIOApp:
             macro_system.macro_z_cycle()
 
     def _q_handler(self):
-        """Route Q key press to the active module."""
         if state.run_magic_f_script:
             if state.magic_f_refill_mode:
-                return  # blocked in refill mode
+                return
             magic_f.magic_f_cycle_preset()
             from gui.tooltip import show_tooltip
             show_tooltip(magic_f.magic_f_build_tooltip(), 0, 0)
         elif getattr(state, "imprint_scanning", False):
             auto_imprint.imprint_toggle_auto_mode()
         elif state.depo_eggs_active or state.depo_embryo_active:
-            # Depo cycle active — Q cycles to next step
             if len(state.depo_cycle) > 1:
                 quick_hatch.depo_cycle_next()
                 from gui.tooltip import show_tooltip
                 show_tooltip(quick_hatch.depo_build_tooltip(), 0, 0)
             return
         elif state.qh_armed or state.run_claim_and_name_script or state.run_name_and_spay_script:
-            # Stop ALL of these in one Q press (not elif), then show GUI
             stopped_any = False
             if state.qh_armed:
                 state.qh_armed = False
@@ -683,7 +595,6 @@ class AIOApp:
                 state.qh_mode = 0
                 from gui.tooltip import hide_tooltip
                 hide_tooltip(1)
-                # Reset GUI checkboxes
                 if self.tab_misc and self.root:
                     def _reset_qh():
                         self.tab_misc.qh_all_var.set(False)
@@ -703,7 +614,6 @@ class AIOApp:
                 from gui.tooltip import hide_tooltip
                 hide_tooltip(2)
                 stopped_any = True
-            # Clear depo state
             state.depo_eggs_active = False
             state.depo_embryo_active = False
             state.depo_cycle.clear()
@@ -725,18 +635,14 @@ class AIOApp:
             ob_download.ob_down_stop_all()
         elif state.pc_running:
             # Q during popcorn = early exit (advance to next filter in multi-step).
-            # Do NOT call stop_popcorn() which also sets pc_f1_abort.
             state.pc_early_exit = True
         elif state.ac_simple_armed or state.ac_timed_armed or state.ac_grid_armed:
-            # Cycle to next preset if multiple
             if len(state.ac_preset_names) > 1:
                 state.ac_preset_idx = (state.ac_preset_idx % len(state.ac_preset_names)) + 1
-                # Update tooltip to show new active preset
                 mode = "Simple" if state.ac_simple_armed else "Timed" if state.ac_timed_armed else "Grid"
                 from gui.tooltip import show_tooltip
                 show_tooltip(auto_craft.ac_build_craft_tooltip(mode), 0, 0)
         elif state.ac_running and state.ac_timed_multi_active:
-            # Q during multi-preset timed loop = cycle preset
             if len(state.ac_preset_names) > 1:
                 state.ac_preset_idx = (state.ac_preset_idx % len(state.ac_preset_names)) + 1
         elif state.ac_running:
@@ -747,7 +653,6 @@ class AIOApp:
             autoclicker.toggle_autoclicker()
 
     def _e_handler(self):
-        """Route E key press."""
         if state.run_claim_and_name_script:
             threading.Thread(target=name_spay.claim_and_name_e_pressed,
                              args=(state.dino_name,), daemon=True).start()
@@ -758,12 +663,10 @@ class AIOApp:
             auto_pin.pin_start_poll()
 
     def _r_handler(self):
-        """R key — trigger imprint read & process when scanning."""
         if state.imprint_scanning:
             auto_imprint.imprint_on_read_and_process()
 
     def _bracket_left(self):
-        """[ key — slow down."""
         if state.ob_download_running:
             state.ob_down_item_delay_ms = min(
                 state.ob_down_item_delay_ms + state.ob_down_item_delay_step,
@@ -775,7 +678,6 @@ class AIOApp:
             autoclicker.autoclick_slower()
 
     def _bracket_right(self):
-        """] key — speed up."""
         if state.ob_download_running:
             state.ob_down_item_delay_ms = max(
                 state.ob_down_item_delay_ms - state.ob_down_item_delay_step,
@@ -787,11 +689,6 @@ class AIOApp:
             autoclicker.autoclick_faster()
 
     def _apply_ini(self):
-        """F5: Apply INI console commands to the game.
-
-        Save clipboard → set clipboard to full command string →
-        open command bar → Ctrl+V paste → Enter → restore clipboard.
-        """
         from input.keyboard import send, key_press
         from input.window import win_exist, win_activate
 
@@ -801,15 +698,12 @@ class AIOApp:
         if not hwnd:
             return
 
-        # Hide GUI
         self.root.after(0, self.root.withdraw)
         state.gui_visible = False
 
-        # Activate ARK window
         win_activate(hwnd)
         time.sleep(0.300)
 
-        # Save clipboard, set to command string, paste, restore
         try:
             from util.clipboard import get_clipboard_text, set_clipboard_text
 
@@ -817,46 +711,37 @@ class AIOApp:
 
             set_clipboard_text(commands)
 
-            # Open command bar
             key_press(state.ini_command_key.strip("{}"))
             time.sleep(0.400)
 
-            # Paste with Ctrl+V
             send("^v")
             time.sleep(0.400)
 
-            # Execute
             key_press("enter")
             time.sleep(0.500)
 
-            # Restore clipboard
             if saved_clip is not None:
                 set_clipboard_text(saved_clip)
         except Exception:
             pass
 
     def _on_tab_change(self, tab_name: str):
-        """Handle tab changes — register/unregister module hotkeys."""
-        # Reset tab-active flags
         state.pc_tab_active = (tab_name in ("Popcorn", "JoinSim"))
         state.sheep_tab_active = (tab_name == "Sheep")
         state.ac_tab_active = (tab_name == "Craft")
         state.macro_tab_active = (tab_name == "Macro")
 
-        # Register sheep hotkeys when on sheep tab
         if tab_name == "Sheep" and self.hotkeys:
             sheep.sheep_register_hotkeys(self.hotkeys)
         else:
             sheep.sheep_unregister_hotkeys(self.hotkeys)
 
-        # Register macro hotkeys when on macro tab
         if tab_name == "Macro" and self.hotkeys:
             macro_system.macro_register_hotkeys(True)
         else:
             macro_system.macro_block_all_hotkeys()
 
     def _load_lists(self):
-        """Load all filter/name lists from INI."""
         from util.list_manager import ListManager
 
         managers = {
@@ -877,28 +762,22 @@ class AIOApp:
             target_list.clear()
             target_list.extend(loaded)
 
-        # Default name entry
         if not state.cn_name_list:
             state.cn_name_list.append("GG FFA")
 
-        # Load server notes from INI
         from core.config import read_ini
         for i, svr in enumerate(state.svr_list, start=1):
             note = read_ini("Servers", f"Note{i}", "")
             if note:
                 state.svr_notes[svr] = note
 
-        # Populate comboboxes from loaded lists
         self._populate_combos()
 
-        # Load macros
         macro_system.macro_load_all()
 
-        # Populate macro treeview
         self._populate_macro_list()
 
     def _populate_combos(self):
-        """Push loaded lists into their combobox widgets."""
         misc = self.tab_misc
         misc.name_combo["values"] = state.cn_name_list
         if state.cn_name_list:
@@ -912,39 +791,32 @@ class AIOApp:
         js.refresh_server_combo()
         if state.svr_list:
             js.server_combo.set(js._svr_display_for(state.svr_list[0]))
-            # Initialize ob_char_custom_server from the first server
             if not state.ob_char_custom_server:
                 state.ob_char_custom_server = state.svr_list[0]
 
-        # Pre-populate NTFY key edit
         if state.ntfy_key:
             js.ntfy_edit.delete(0, "end")
             js.ntfy_edit.insert(0, state.ntfy_key)
 
-        # Magic F custom combos
         mf = self.tab_magicf
         mf.give_custom_combo["values"] = state.mf_give_filter_list
         mf.take_custom_combo["values"] = state.mf_take_filter_list
 
-        # Popcorn custom combo
         pc = self.tab_popcorn
         pc.custom_combo["values"] = state.pc_custom_filter_list
         if state.pc_custom_filter:
             pc.custom_combo.set(state.pc_custom_filter)
 
-        # Popcorn speed + drop key labels
         speed_name = state.pc_speed_names.get(state.pc_speed_mode, "Fast")
         pc.speed_txt.configure(text=f"{speed_name} [Z]")
         pc.drop_key_txt.configure(text=state.pc_drop_key.upper())
 
-        # Craft tab combos
         ct = self.tab_craft
         ct.simple_filter_combo["values"] = state.ac_simple_filter_list
         ct.timed_filter_combo["values"] = state.ac_timed_filter_list
         ct.grid_filter_combo["values"] = state.ac_grid_filter_list
 
     def _populate_macro_list(self):
-        """Push loaded macros into the Macro tab treeview."""
         macros = []
         for m in state.macro_list:
             speed = ""
@@ -961,7 +833,6 @@ class AIOApp:
         self.tab_macro.populate(macros)
 
     def _on_quit(self):
-        """Clean exit."""
         self._stop_flags()
         timers.stop_all()
         if self.hotkeys:
@@ -976,7 +847,6 @@ class AIOApp:
         sys.exit(0)
 
     def _cleanup(self):
-        """Final cleanup."""
         if not getattr(self, '_timer_period_ended', False):
             _sys.end_timer_period(1)
             self._timer_period_ended = True
