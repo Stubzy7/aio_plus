@@ -21,10 +21,6 @@ from core.scaling import screen_width, screen_height
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-#  Tooltip helper
-# ---------------------------------------------------------------------------
-
 def _tooltip(text: str | None = None):
     try:
         from gui.tooltip import show_tooltip, update_tooltip, hide_tooltip
@@ -53,11 +49,10 @@ def _macro_speed_hint(m: dict) -> str:
 def _macro_speed_bar(sp: float) -> str:
     filled = round((sp - 0.10) / (2.00 - 0.10) * 20)
     filled = max(0, min(20, filled))
-    return "[" + "█" * filled + "░" * (20 - filled) + "]"
+    return "[" + "\u2588" * filled + "\u2591" * (20 - filled) + "]"
 
 
 def _update_play_btn(text: str):
-    """Update the macro tab Start/Stop button text from any thread."""
     tab = getattr(state, "_tab_macro", None)
     if tab is None:
         return
@@ -68,10 +63,6 @@ def _update_play_btn(text: str):
 
 
 def _macro_is_busy() -> bool:
-    """Return True if any non-interruptible macro operation is running.
-
-    Checks all concurrent automation flags.
-    """
     return (
         state.guided_recording
         or state.combo_running
@@ -95,12 +86,7 @@ def _macro_is_busy() -> bool:
     )
 
 
-# ---------------------------------------------------------------------------
-#  INI persistence
-# ---------------------------------------------------------------------------
-
 def macro_load_all():
-    """Load all macros from AIO_config.ini (and migrate from legacy file)."""
     import os
     import configparser
 
@@ -195,7 +181,6 @@ def macro_load_all():
 
     _macro_ensure_defaults()
 
-    # Migrate legacy
     if os.path.exists(legacy_file):
         macro_save_all()
         try:
@@ -206,7 +191,6 @@ def macro_load_all():
 
 
 def _load_events(cp, sec: str, count: int) -> list[dict]:
-    """Parse event strings from an INI section."""
     events = []
     for i in range(1, count + 1):
         raw = cp.get(sec, f"E{i}", fallback="")
@@ -233,13 +217,11 @@ def _load_events(cp, sec: str, count: int) -> list[dict]:
 
 
 def macro_save_all():
-    """Persist all macros to AIO_config.ini."""
     import configparser
 
     path = _ini_path()
     cp = _read_parser(path)
 
-    # Remove old macro sections
     try:
         old_count = int(cp.get("MacroCount", "Count", fallback="0"))
     except Exception:
@@ -251,7 +233,6 @@ def macro_save_all():
     if cp.has_section("MacroCount"):
         cp.remove_section("MacroCount")
 
-    # Write new
     cp.add_section("MacroCount")
     cp.set("MacroCount", "Count", str(len(state.macro_list)))
     cp.set("MacroCount", "Selected", str(state.macro_selected_idx))
@@ -307,7 +288,6 @@ def macro_save_all():
 
 
 def _save_events(cp, sec: str, events: list[dict]):
-    """Write event strings to an INI section."""
     for j, evt in enumerate(events, 1):
         if evt["type"] == "K":
             cp.set(sec, f"E{j}", f"K|{evt['dir']}|{evt['key']}|{evt['delay']}")
@@ -318,7 +298,6 @@ def _save_events(cp, sec: str, events: list[dict]):
 
 
 def _macro_ensure_defaults():
-    """Ensure built-in macros (Pyro, Yuty, Cap of Flak) exist."""
     has_pyro = any(m["type"] == "pyro" for m in state.macro_list)
     has_yuty = any(m["type"] == "repeat" and "Yuty" in m["name"] for m in state.macro_list)
     has_cap_flak = any(m["type"] == "guided" and "Cap of flak" in m["name"] for m in state.macro_list)
@@ -347,7 +326,6 @@ def _macro_ensure_defaults():
         changed = True
 
     if not has_cap_flak:
-        # Build a default guided macro for cap-of-flak drop grid
         events = []
         slot_count = 60
         drop_key = "g"
@@ -389,16 +367,7 @@ def _macro_ensure_defaults():
         macro_save_all()
 
 
-# ---------------------------------------------------------------------------
-#  Recording
-# ---------------------------------------------------------------------------
-
 def macro_start_record():
-    """Begin recording keyboard and mouse events for a new macro.
-
-    Hides the GUI, activates ARK, and starts a 50 ms mouse-poll timer.
-    Key events are captured via the hotkey hook.
-    """
     if state.macro_recording or state.macro_playing:
         return
     if len(state.macro_list) >= 10:
@@ -419,17 +388,12 @@ def macro_start_record():
 
     state.macro_record_last_tick = time.perf_counter()
 
-    # Start mouse-position polling
     timers.set_timer("macro_record_mouse_poll", _macro_record_mouse_poll, 50)
     _tooltip(" RECORDING...  (0 events)\n F1 = Stop & Save")
     _macro_log("Recording started")
 
 
 def macro_stop_record() -> bool:
-    """Stop recording and show the save dialog (or discard if empty).
-
-    Returns True if recording was active and stopped.
-    """
     if not state.macro_recording:
         return False
     state.macro_recording = False
@@ -445,7 +409,6 @@ def macro_stop_record() -> bool:
     event_count = len(state.macro_record_events)
     _macro_log(f"Recording stopped with {event_count} events")
 
-    # If recording into an existing guided macro (re-record), save directly
     idx = state.macro_record_target_idx
     if idx is not None and 0 <= idx < len(state.macro_list):
         m = state.macro_list[idx]
@@ -458,7 +421,6 @@ def macro_stop_record() -> bool:
             state.macro_record_events = []
             return True
 
-    # Show save dialog on GUI thread
     if state.root:
         state.root.after(0, _macro_show_save_dialog)
     else:
@@ -467,7 +429,6 @@ def macro_stop_record() -> bool:
 
 
 def _macro_auto_save_recording():
-    """Fallback: auto-save recording when no GUI is available."""
     event_count = len(state.macro_record_events)
     name = f"Recording {time.strftime('%H:%M')}"
     new_macro = {
@@ -487,10 +448,6 @@ def _macro_auto_save_recording():
 
 
 def _macro_show_save_dialog():
-    """Show the save dialog for a recorded macro.
-
-    Creates a Toplevel with name, hotkey, loop, save/discard.
-    """
     import tkinter as tk
     from gui.theme import (BG_DARK, BG_COLOR, FG_COLOR, FG_ACCENT, FG_DIM,
                            FONT_BOLD, FONT_DEFAULT, FONT_SMALL, FONT_SMALL_ITALIC,
@@ -521,7 +478,6 @@ def _macro_show_save_dialog():
     hk_edit = tk.Entry(dlg, font=FONT_DEFAULT)
     hk_edit.place(x=75, y=78, width=100, height=24)
 
-    # Excluded keys for hotkey detection
     _excluded = {"shift_l", "shift_r", "control_l", "control_r",
                  "alt_l", "alt_r", "escape", "caps_lock", "tab",
                  "super_l", "super_r", "f1", "f2", "f3"}
@@ -563,7 +519,6 @@ def _macro_show_save_dialog():
         state.macro_record_events = []
         state.macro_save_gui = None
         dlg.destroy()
-        # Refresh macro list if tab is available
         if hasattr(state, "_tab_macro") and state._tab_macro:
             state._tab_macro._refresh_list()
 
@@ -582,7 +537,6 @@ def _macro_show_save_dialog():
 
 
 def _macro_record_mouse_poll():
-    """Timer callback — track mouse movement during recording."""
     if not state.macro_recording:
         return
     mx, my = get_cursor_pos()
@@ -600,12 +554,6 @@ def _macro_record_mouse_poll():
 
 
 def macro_record_key_event(key: str, direction: str = "p"):
-    """Log a key event during recording. Called from the hotkey hook.
-
-    Args:
-        key: The key name (e.g. "a", "Enter").
-        direction: "p" = press, "d" = down, "u" = up.
-    """
     if not state.macro_recording:
         return
     now = time.perf_counter()
@@ -618,13 +566,6 @@ def macro_record_key_event(key: str, direction: str = "p"):
 
 
 def macro_record_mouse_event(button: str, direction: str, mx: int, my: int):
-    """Log a mouse click event during recording.
-
-    Args:
-        button: "L", "R", or "M".
-        direction: "c" = click, "d" = down, "u" = up.
-        mx, my: Screen coordinates.
-    """
     if not state.macro_recording:
         return
     now = time.perf_counter()
@@ -639,18 +580,9 @@ def macro_record_mouse_event(button: str, direction: str, mx: int, my: int):
     _tooltip(f" RECORDING...  ({len(state.macro_record_events)} events)\n F1 = Stop & Save")
 
 
-# ---------------------------------------------------------------------------
-#  Guided recording (from wizard)
-# ---------------------------------------------------------------------------
-
 def macro_start_guided_record(name: str, inv_type: str,
                                search_filters: list[str],
                                on_done=None):
-    """Start a guided recording session.
-
-    Arms the recording system, activates ARK, and waits for F1 to stop.
-    When done, builds a guided macro dict and calls on_done(macro_dict).
-    """
     state.guided_recording = True
     state.guided_record_events = []
     state.macro_recording = True
@@ -669,7 +601,6 @@ def macro_start_guided_record(name: str, inv_type: str,
     def _wait_thread():
         while state.macro_recording:
             time.sleep(0.1)
-        # Recording stopped (by F1 handler)
         state.guided_recording = False
         m = {
             "name": name, "type": "guided", "hotkey": "f",
@@ -688,16 +619,7 @@ def macro_start_guided_record(name: str, inv_type: str,
     threading.Thread(target=_wait_thread, daemon=True).start()
 
 
-# ---------------------------------------------------------------------------
-#  Playback dispatch
-# ---------------------------------------------------------------------------
-
 def macro_play_selected():
-    """Arm the currently selected macro and prepare for playback.
-
-    For guided and combo macros, playback starts immediately.
-    For recorded/repeat/pyro, the macro is armed and waits for its hotkey.
-    """
     if state.macro_playing:
         return
     if state.macro_selected_idx < 1 or state.macro_selected_idx > len(state.macro_list):
@@ -716,8 +638,6 @@ def macro_play_selected():
     sel = state.macro_list[state.macro_selected_idx - 1]
     _macro_log(f"PlaySelected: armed '{sel['name']}' type={sel['type']} hk={sel.get('hotkey','')}")
 
-    # Re-register hotkeys now that macro_armed is True
-    # (updates suppress flag for pyro, ensures hotkey is live)
     macro_register_hotkeys(True)
 
     if sel["type"] in ("guided", "combo"):
@@ -733,7 +653,6 @@ def macro_play_selected():
 
 
 def macro_play_by_index(idx: int):
-    """Launch playback of the macro at 1-based index ``idx``."""
     if state.macro_playing or idx < 1 or idx > len(state.macro_list):
         return
 
@@ -765,16 +684,7 @@ def macro_play_by_index(idx: int):
         t.start()
 
 
-# ---------------------------------------------------------------------------
-#  Recorded playback
-# ---------------------------------------------------------------------------
-
 def macro_play_recorded_thread(m: dict):
-    """Play a recorded macro's events with delay scaling. Supports looping.
-
-    Runs in a worker thread. Checks ``state.macro_playing`` between events
-    to allow mid-playback cancellation.
-    """
     my_idx = state.macro_active_idx
     loop_count = 0
 
@@ -821,16 +731,7 @@ def macro_play_recorded_thread(m: dict):
         )
 
 
-# ---------------------------------------------------------------------------
-#  Repeat playback
-# ---------------------------------------------------------------------------
-
 def macro_play_repeat_thread(m: dict):
-    """Play a key-repeat macro. Supports spam mode and movement mode.
-
-    Q cycles through repeat_keys when multiple keys are defined.
-    Runs in a worker thread.
-    """
     VK_Q = 0x51
 
     my_idx = state.macro_active_idx
@@ -846,7 +747,6 @@ def macro_play_repeat_thread(m: dict):
     multi = len(keys) > 1
 
     def _check_q():
-        """Poll Q to cycle repeat keys."""
         if not multi:
             return
         if _sys.get_async_key_state(VK_Q):
@@ -854,7 +754,7 @@ def macro_play_repeat_thread(m: dict):
                 time.sleep(0.050)
             state.macro_repeat_key_idx = (state.macro_repeat_key_idx + 1) % len(keys)
             cur = keys[state.macro_repeat_key_idx]
-            _macro_log(f"RepeatPlay: Q → key #{state.macro_repeat_key_idx} '{cur}'")
+            _macro_log(f"RepeatPlay: Q \u2192 key #{state.macro_repeat_key_idx} '{cur}'")
             if is_spam:
                 _repeat_build_tooltip(m, keys)
 
@@ -874,7 +774,6 @@ def macro_play_repeat_thread(m: dict):
             idx = state.macro_repeat_key_idx % len(keys)
             cur_key = keys[idx]
 
-            # Count down
             remaining = interval
             while remaining > 0 and state.macro_playing:
                 _check_q()
@@ -914,10 +813,6 @@ def macro_play_repeat_thread(m: dict):
 
 
 def _repeat_build_tooltip(m: dict, keys: list):
-    """Build spam-mode tooltip with key list and markers.
-
-    Shows current key and full key list with markers.
-    """
     idx = state.macro_repeat_key_idx % len(keys)
     cur_key = keys[idx]
     key_list = ""
@@ -929,7 +824,6 @@ def _repeat_build_tooltip(m: dict, keys: list):
 
 
 def _send_macro_key(key: str):
-    """Send a single key or mouse button for repeat macros."""
     lower = key.lower()
     if lower == "lbutton":
         click(button="left")
@@ -941,16 +835,7 @@ def _send_macro_key(key: str):
         key_press(key)
 
 
-# ---------------------------------------------------------------------------
-#  Pyro playback
-# ---------------------------------------------------------------------------
-
 def _macro_play_pyro_thread(m: dict):
-    """Pyro mount/dismount automation via pixel detection.
-
-    Detects the radial menu context (Asteros+Tek, Asteros, Tek Helm, No Helm)
-    and either mounts or dismounts the shoulder pet.
-    """
     my_idx = state.macro_active_idx
     sp = m.get("speed_mult", 1.0)
 
@@ -960,7 +845,6 @@ def _macro_play_pyro_thread(m: dict):
         state.macro_active_idx = 0
         return
 
-    # Check if already mounted (dismount pixel)
     try:
         dismount_col = pixel_get_color(state.pyro_dismount_x, state.pyro_dismount_y)
     except Exception:
@@ -991,7 +875,6 @@ def _macro_play_pyro_thread(m: dict):
             _macro_save_if_dirty()
         return
 
-    # Mount sequence: hold R to open radial
     _tooltip(" Pyro: Mounting...\n Holding R for radial\n F1 = Stop")
     key_down("r")
     time.sleep(0.450 * sp)
@@ -1000,7 +883,6 @@ def _macro_play_pyro_thread(m: dict):
         _tooltip(None)
         return
 
-    # Detect radial context
     contexts = [
         ("Asteros + Tek", state.pyro_ast_tek_det_x, state.pyro_ast_tek_det_y,
          state.pyro_ast_tek_clk_x, state.pyro_ast_tek_clk_y),
@@ -1045,7 +927,6 @@ def _macro_play_pyro_thread(m: dict):
         _tooltip(None)
         return
 
-    # Check for "throw" (enclosed space)
     try:
         throw_col = pixel_get_color(state.pyro_throw_check_x, state.pyro_throw_check_y)
     except Exception:
@@ -1073,14 +954,8 @@ def _macro_play_pyro_thread(m: dict):
         _macro_save_if_dirty()
 
 
-# ---------------------------------------------------------------------------
-#  Guided event cleanup
-# ---------------------------------------------------------------------------
-
 def _guided_clean_recorded_events(events: list[dict]) -> list[dict]:
-    """Clean recorded macro events before guided playback.
-
-    3-phase cleanup:
+    """3-phase cleanup:
     1. Strip leading F/mouse/Esc events (junk from opening inventory)
     2. Strip trailing F/Esc events (junk from closing inventory)
     3. Collapse consecutive mouse-move events to the last one
@@ -1091,19 +966,17 @@ def _guided_clean_recorded_events(events: list[dict]) -> list[dict]:
 
     cleaned = list(events)
 
-    # Phase 1: Strip leading junk — F key, Escape, and mouse-move events
     while cleaned:
         evt = cleaned[0]
         etype = evt.get("type", "")
         key = evt.get("key", "").lower()
-        if etype == "M":  # mouse move
+        if etype == "M":
             cleaned.pop(0)
         elif etype == "K" and key in ("f", "escape", "esc"):
             cleaned.pop(0)
         else:
             break
 
-    # Phase 2: Strip trailing junk — F key and Escape
     while cleaned:
         evt = cleaned[-1]
         etype = evt.get("type", "")
@@ -1115,45 +988,32 @@ def _guided_clean_recorded_events(events: list[dict]) -> list[dict]:
         else:
             break
 
-    # Phase 3: Collapse consecutive mouse-move events to the last one
     collapsed = []
     for i, evt in enumerate(cleaned):
         if evt.get("type") == "M":
-            # If the next event is also a mouse move, skip this one
             if i + 1 < len(cleaned) and cleaned[i + 1].get("type") == "M":
                 continue
         collapsed.append(evt)
 
-    # Phase 4: Normalize unpaired click-down (C,dir=d without matching C,dir=u)
     result = []
     for i, evt in enumerate(collapsed):
         if evt.get("type") == "C" and evt.get("dir") == "d":
-            # Look for matching up event
             has_up = False
             for j in range(i + 1, len(collapsed)):
                 if collapsed[j].get("type") == "C" and collapsed[j].get("dir") == "u":
                     has_up = True
                     break
                 if collapsed[j].get("type") == "C" and collapsed[j].get("dir") == "d":
-                    break  # Another down before up — orphan
+                    break
             if not has_up:
                 evt = dict(evt)
-                evt["dir"] = "c"  # Convert to full click
+                evt["dir"] = "c"
         result.append(evt)
 
     return result
 
 
-# ---------------------------------------------------------------------------
-#  Guided / Combo playback (skeleton — full logic is extensive)
-# ---------------------------------------------------------------------------
-
 def _guided_play_thread(m: dict):
-    """Guided macro playback — persistent thread with F-key polling.
-
-    Loops continuously waiting for user to press F at an inventory,
-    then replays events, closes inventory, and waits again.
-    """
     VK_F = 0x46
     VK_Q = 0x51
 
@@ -1170,30 +1030,26 @@ def _guided_play_thread(m: dict):
     _guided_show_armed_tooltip(m)
 
     while state.macro_playing and state.macro_active_idx == my_idx:
-        # Skip if dialog is open
         if macro_dialog_open():
             time.sleep(0.1)
             continue
 
-        # Check mouse on screen
         mx, my = get_cursor_pos()
         mouse_on = (0 <= mx < screen_width and 0 <= my < screen_height)
 
-        # ── Q TOGGLE: single item mode ──
         if _sys.get_async_key_state(VK_Q) and mouse_on:
             while _sys.get_async_key_state(VK_Q) and state.macro_playing:
                 time.sleep(0.050)
             state.guided_single_item = not state.guided_single_item
-            _macro_log(f"GuidedPlay: Q → single item mode {'ON' if state.guided_single_item else 'OFF'}")
+            _macro_log(f"GuidedPlay: Q \u2192 single item mode {'ON' if state.guided_single_item else 'OFF'}")
             _guided_show_armed_tooltip(m)
 
-        # ── F TRIGGER: inventory interaction ──
         ark_hwnd = win_exist(state.ark_window)
         gmk_off = getattr(state, "gmk_mode", "off") == "off"
         if (_sys.get_async_key_state(VK_F) and mouse_on
                 and ark_hwnd and get_foreground_window() == ark_hwnd and gmk_off):
 
-            # Check if inventory already open
+            # Inventory already open — wait for F release, don't double-trigger
             inv_already = False
             try:
                 c = pixel_get_color(state.pc_inv_detect_x, state.pc_inv_detect_y)
@@ -1201,7 +1057,6 @@ def _guided_play_thread(m: dict):
             except Exception:
                 pass
             if inv_already:
-                # Inventory already open — wait for F release, don't double-trigger
                 while _sys.get_async_key_state(VK_F) and state.macro_playing:
                     time.sleep(0.050)
                 continue
@@ -1263,14 +1118,12 @@ def _guided_play_thread(m: dict):
             if not state.macro_playing or state.macro_active_idx != my_idx:
                 break
 
-            # Apply search filter (first filter only)
             if filters:
                 _guided_apply_search_filter(filters[0], use_player_bar=is_give)
 
             if not state.macro_playing or state.macro_active_idx != my_idx:
                 break
 
-            # Dispatch to replay mode
             turbo_on = bool(m.get("turbo", 0))
             mode_label = "SINGLE" if state.guided_single_item else ("FAST" if turbo_on else "FULL")
             _macro_log(f"GuidedPlay: replaying ({mode_label}) {len(m.get('events', []))} events")
@@ -1305,7 +1158,6 @@ def _guided_play_thread(m: dict):
 
         time.sleep(0.050)
 
-    # Cleanup
     _macro_log("GuidedPlay: STOPPED")
     state.guided_single_item = False
     if state.macro_active_idx == my_idx:
@@ -1316,19 +1168,12 @@ def _guided_play_thread(m: dict):
 
 
 def _combo_play_thread(m: dict):
-    """Combo macro playback — two-mode state machine with F-key polling.
-
-    Mode 1 = Popcorn (drop items from storage grid).
-    Mode 2 = Magic F Give (transfer items to other inventory).
-    Q cycles filters within a mode, then swaps mode at end.
-    Z exits combo entirely. R closes inventory in popcorn mode.
-    """
     VK_F, VK_Q, VK_R, VK_Z = 0x46, 0x51, 0x52, 0x5A
 
     my_idx = state.macro_active_idx
     state.combo_running = True
     state.combo_mode = 1
-    state.combo_filter_idx = 0  # 0-based in Python
+    state.combo_filter_idx = 0
 
     pc_filters = m.get("popcorn_filters", [])
     mf_filters = m.get("magic_f_filters", [])
@@ -1358,7 +1203,6 @@ def _combo_play_thread(m: dict):
 
     while state.macro_playing and state.combo_running:
 
-        # ── MODE 1: POPCORN ──
         if state.combo_mode == 1:
             if not state.macro_playing or not state.combo_running:
                 break
@@ -1366,7 +1210,6 @@ def _combo_play_thread(m: dict):
             _macro_log(f"ComboPlay: POPCORN mode filterIdx={state.combo_filter_idx} filter={filt or '(all)'}")
             _combo_show_tooltip(m)
 
-            # firstEntry: if inventory already open when combo starts, drop immediately
             if first_entry:
                 first_entry = False
                 try:
@@ -1386,7 +1229,6 @@ def _combo_play_thread(m: dict):
                     time.sleep(0.1)
                     continue
 
-                # Q = cycle filter / swap to magic-F
                 if _sys.get_async_key_state(VK_Q):
                     _wait_release(VK_Q)
                     if _inv_is_open():
@@ -1394,34 +1236,31 @@ def _combo_play_thread(m: dict):
                         time.sleep(0.3)
                     if state.combo_filter_idx < len(pc_filters) - 1:
                         state.combo_filter_idx += 1
-                        _macro_log(f"ComboPlay: Q → next popcorn filter #{state.combo_filter_idx}")
+                        _macro_log(f"ComboPlay: Q \u2192 next popcorn filter #{state.combo_filter_idx}")
                         _combo_show_tooltip(m)
                     else:
                         state.combo_mode = 2
                         state.combo_filter_idx = 0
-                        _macro_log("ComboPlay: Q → swapped to MAGIC F (armed)")
+                        _macro_log("ComboPlay: Q \u2192 swapped to MAGIC F (armed)")
                         _combo_show_tooltip(m)
                         break
                     continue
 
-                # R = close inventory, stay in popcorn
                 if _sys.get_async_key_state(VK_R):
                     _wait_release(VK_R)
                     if _inv_is_open():
-                        _macro_log("ComboPlay: R → closing inventory, staying popcorn")
+                        _macro_log("ComboPlay: R \u2192 closing inventory, staying popcorn")
                         send("{Escape}")
                         time.sleep(0.3)
                     _combo_show_tooltip(m)
                     continue
 
-                # Z = exit combo
                 if _sys.get_async_key_state(VK_Z):
                     _wait_release(VK_Z)
-                    _macro_log("ComboPlay: Z → exiting combo")
+                    _macro_log("ComboPlay: Z \u2192 exiting combo")
                     state.combo_running = False
                     break
 
-                # F = open inventory and popcorn
                 ark_hwnd = win_exist(state.ark_window)
                 gmk_off = getattr(state, "gmk_mode", "off") == "off"
                 if ((_sys.get_async_key_state(VK_F)) and _mouse_ok()
@@ -1448,7 +1287,6 @@ def _combo_play_thread(m: dict):
 
                 time.sleep(0.050)
 
-        # ── MODE 2: MAGIC F GIVE ──
         elif state.combo_mode == 2:
             if not state.macro_playing or not state.combo_running:
                 break
@@ -1461,29 +1299,26 @@ def _combo_play_thread(m: dict):
                     time.sleep(0.1)
                     continue
 
-                # Q = cycle filter / swap to popcorn
                 if _sys.get_async_key_state(VK_Q):
                     _wait_release(VK_Q)
                     if state.combo_filter_idx < len(mf_filters) - 1:
                         state.combo_filter_idx += 1
-                        _macro_log(f"ComboPlay: Q → next MF filter #{state.combo_filter_idx}")
+                        _macro_log(f"ComboPlay: Q \u2192 next MF filter #{state.combo_filter_idx}")
                         _combo_show_tooltip(m)
                     else:
                         state.combo_mode = 1
                         state.combo_filter_idx = 0
-                        _macro_log("ComboPlay: Q → swapped to POPCORN (armed)")
+                        _macro_log("ComboPlay: Q \u2192 swapped to POPCORN (armed)")
                         _combo_show_tooltip(m)
                         break
                     continue
 
-                # Z = exit combo
                 if _sys.get_async_key_state(VK_Z):
                     _wait_release(VK_Z)
-                    _macro_log("ComboPlay: Z → exiting combo")
+                    _macro_log("ComboPlay: Z \u2192 exiting combo")
                     state.combo_running = False
                     break
 
-                # F = open inventory, apply filter, transfer all, close
                 ark_hwnd = win_exist(state.ark_window)
                 gmk_off = getattr(state, "gmk_mode", "off") == "off"
                 if ((_sys.get_async_key_state(VK_F)) and _mouse_ok()
@@ -1500,7 +1335,7 @@ def _combo_play_thread(m: dict):
                                  f" Q = cycle  |  Z = exit")
                     else:
                         cur = mf_filters[state.combo_filter_idx % len(mf_filters)]
-                        _macro_log(f"ComboPlay: MF inv found — filter [{cur or '(all)'}] → Transfer All")
+                        _macro_log(f"ComboPlay: MF inv found — filter [{cur or '(all)'}] \u2192 Transfer All")
                         if cur:
                             _combo_apply_my_filter(cur)
                         _combo_magic_f_give()
@@ -1511,7 +1346,6 @@ def _combo_play_thread(m: dict):
 
                 time.sleep(0.050)
 
-    # Cleanup
     _macro_log("ComboPlay: STOPPED")
     state.combo_running = False
     state.combo_mode = 0
@@ -1523,12 +1357,7 @@ def _combo_play_thread(m: dict):
         _tooltip(None)
 
 
-# ---------------------------------------------------------------------------
-#  Guided support functions
-# ---------------------------------------------------------------------------
-
 def _guided_show_armed_tooltip(m: dict):
-    """Show armed-state tooltip for a guided macro (action, filters, controls)."""
     is_give = bool(m.get("player_search", 0))
     events = m.get("events", [])
     has_clicks = any(e.get("type") == "C" for e in events)
@@ -1556,11 +1385,6 @@ def _guided_show_armed_tooltip(m: dict):
 
 
 def _guided_apply_search_filter(text: str, use_player_bar: bool = False):
-    """Paste a search filter into the inventory search bar via ControlClick.
-
-    Uses ControlClick (PostMessage) for search bar and click-back to grid.
-    Player bar uses shorter delays than container bar.
-    """
     if not text:
         return
     from input.window import control_click
@@ -1582,7 +1406,6 @@ def _guided_apply_search_filter(text: str, use_player_bar: bool = False):
 
     _macro_log(f"GuidedApplyFilter: applying [{text}] searchBar=({sb_x},{sb_y}) playerBar={use_player_bar}")
 
-    # Activate ARK first (required before ControlClick)
     if get_foreground_window() != hwnd:
         win_activate(hwnd)
     time.sleep(t1)
@@ -1590,7 +1413,6 @@ def _guided_apply_search_filter(text: str, use_player_bar: bool = False):
     control_click(hwnd, sb_x, sb_y)
     time.sleep(t2)
 
-    # Save clipboard, paste filter, restore
     saved_clip = get_clipboard_text()
     try:
         set_clipboard_text(text)
@@ -1610,10 +1432,6 @@ def _guided_apply_search_filter(text: str, use_player_bar: bool = False):
 
 
 def _guided_replay_single(m: dict):
-    """Replay only the first item transfer (one M+K or C+K pair).
-
-    Replays only the first M+K or C+K pair.
-    """
     events = m.get("events", [])
     mouse_speed = m.get("mouse_speed", 0)
     settle = m.get("mouse_settle", 1)
@@ -1627,7 +1445,6 @@ def _guided_replay_single(m: dict):
             mouse_move(evt["x"], evt["y"], mouse_speed)
             if settle > 0:
                 time.sleep(settle / 1000.0)
-            # Check if next event is a key press — that completes the transfer
             if i + 1 < len(events) and events[i + 1].get("type") == "K":
                 key_press(events[i + 1]["key"])
                 return
@@ -1646,18 +1463,10 @@ def _guided_replay_single(m: dict):
 
 
 def _guided_replay_fast_transfer(m: dict):
-    """Turbo replay — extract slot positions and rapid-fire transfers.
-
-    Three paths:
-      Path 1: Take/Give (events have C clicks) — click slot + send key
-      Path 2: Popcorn (events have M moves, no clicks) — click + send key
-      Path 3: Fallback to GuidedReplayEvents
-    """
     events = m.get("events", [])
     mouse_spd = m.get("mouse_speed", 0)
     is_give = bool(m.get("player_search", 0))
 
-    # Find transfer key from first K press event
     transfer_key = None
     for evt in events:
         if evt.get("type") == "K" and evt.get("dir") == "p":
@@ -1666,7 +1475,6 @@ def _guided_replay_fast_transfer(m: dict):
     if transfer_key is None:
         transfer_key = "t"
 
-    # Path 1: Extract click positions (Take/Give)
     slots = []
     for evt in events:
         if evt.get("type") == "C" and evt.get("dir") in ("c", "d"):
@@ -1691,7 +1499,6 @@ def _guided_replay_fast_transfer(m: dict):
         _macro_log(f"GuidedFastXfer: DONE {len(slots)} items")
         return
 
-    # Path 2: Extract move positions (Popcorn/Drop — no clicks in events)
     drop_slots = []
     for evt in events:
         if evt.get("type") == "M":
@@ -1714,21 +1521,13 @@ def _guided_replay_fast_transfer(m: dict):
         _macro_log(f"GuidedFastXfer: DONE {len(drop_slots)} drops")
         return
 
-    # Path 3: Fallback
     _macro_log("GuidedFastXfer: no slots found — falling back to generic replay")
     _guided_replay_events(m)
 
 
 def _guided_replay_events(m: dict):
-    """Full event replay with optional turbo timing.
-
-    Turbo mode: C->K = 100ms, K->C = 200ms, K->M = 0ms, else min(raw, turboDelay).
-    Non-turbo: uses recorded delays scaled by speed_mult.
-    Per-type delay application:
-      M: MouseMove + settle (no pre-delay)
-      K: Sleep(delay) + Send
-      C: MouseMove + Sleep(max(delay, settle)) + Click
-    """
+    # Turbo mode: C->K = 100ms, K->C = 200ms, K->M = 0ms, else min(raw, turboDelay).
+    # Non-turbo: uses recorded delays scaled by speed_mult.
     events = m.get("events", [])
     speed = m.get("speed_mult", 1.0)
     mouse_spd = m.get("mouse_speed", 0)
@@ -1740,7 +1539,6 @@ def _guided_replay_events(m: dict):
     click_to_key_gap = 100
     key_to_click_gap = 200
 
-    # === CLEANING PHASE ===
     # Strip leading hotkey presses (F key that opened inventory)
     # Collapse consecutive mouse moves (keep only last)
     cleaned = []
@@ -1748,12 +1546,10 @@ def _guided_replay_events(m: dict):
     while i < len(events):
         evt = events[i]
         etype = evt.get("type", "")
-        # Strip leading hotkey presses
         if (not cleaned and etype == "K" and evt.get("dir") == "p"
                 and hotkey and evt.get("key", "").lower() == hotkey.lower()):
             i += 1
             continue
-        # Collapse consecutive M events (keep last)
         if etype == "M":
             last_m = evt
             while i + 1 < len(events) and events[i + 1].get("type") == "M":
@@ -1764,7 +1560,6 @@ def _guided_replay_events(m: dict):
             cleaned.append(evt)
         i += 1
 
-    # === REPLAY PHASE ===
     prev_type = "K"
     for evt in cleaned:
         if not state.macro_playing:
@@ -1784,7 +1579,6 @@ def _guided_replay_events(m: dict):
         else:
             use_delay = raw_delay
 
-        # Update prev_type for C and K only (not M)
         if etype == "C":
             prev_type = "C"
         elif etype == "K":
@@ -1825,12 +1619,7 @@ def _guided_replay_events(m: dict):
                 mouse_up(button)
 
 
-# ---------------------------------------------------------------------------
-#  Combo support functions
-# ---------------------------------------------------------------------------
-
 def _combo_cycle_filter(m: dict):
-    """Cycle to next filter in current combo mode; swap modes at end."""
     pc_filters = m.get("popcorn_filters", [])
     mf_filters = m.get("magic_f_filters", [])
 
@@ -1855,10 +1644,6 @@ def _combo_cycle_filter(m: dict):
 
 
 def _combo_wait_for_inv(max_ms: int = 5000) -> bool:
-    """Wait for inventory white pixel to appear.
-
-    Polls inventory detection pixel until visible or timeout.
-    """
     deadline = time.perf_counter() + max_ms / 1000.0
     while time.perf_counter() < deadline and state.macro_playing and state.combo_running:
         try:
@@ -1872,10 +1657,6 @@ def _combo_wait_for_inv(max_ms: int = 5000) -> bool:
 
 
 def _combo_apply_their_filter(text: str):
-    """Paste filter into the other-inventory search bar via ControlClick.
-
-    Uses clipboard paste (Ctrl+A, Ctrl+V).
-    """
     if not text:
         return
     from input.window import control_click
@@ -1884,7 +1665,6 @@ def _combo_apply_their_filter(text: str):
     hwnd = win_exist(state.ark_window)
     if not hwnd:
         return
-    # WinActivate before ControlClick
     if get_foreground_window() != hwnd:
         win_activate(hwnd)
     time.sleep(0.080)
@@ -1906,10 +1686,6 @@ def _combo_apply_their_filter(text: str):
 
 
 def _combo_apply_my_filter(text: str):
-    """Type filter into the player-inventory search bar via Send().
-
-    Uses ControlClick for search bar, then Send() for typing (NOT clipboard).
-    """
     from input.window import control_click
     hwnd = win_exist(state.ark_window)
     if not hwnd:
@@ -1921,11 +1697,6 @@ def _combo_apply_my_filter(text: str):
 
 
 def _combo_popcorn_drop_loop():
-    """Grid-based item drop loop for combo popcorn mode.
-
-    Grid-based item drop with OCR storage detection.
-    Stops automatically when storage reads empty via OCR.
-    """
     from modules.popcorn import pc_check_storage_empty
     VK_R = 0x52
 
@@ -1939,7 +1710,6 @@ def _combo_popcorn_drop_loop():
             for col in range(int(state.pc_columns)):
                 if not state.macro_playing or not state.combo_running:
                     return
-                # R = close inventory and return
                 if _sys.get_async_key_state(VK_R):
                     while (_sys.get_async_key_state(VK_R)
                            and state.macro_playing):
@@ -1947,22 +1717,19 @@ def _combo_popcorn_drop_loop():
                     send("{Escape}")
                     time.sleep(0.3)
                     return
-                # Skip slot if ARK not active
                 if ark_hwnd and get_foreground_window() != ark_hwnd:
                     continue
 
                 x = int(state.pc_start_slot_x + col * state.pc_slot_w)
                 y = int(state.pc_start_slot_y + row * state.pc_slot_h)
                 set_cursor_pos(x, y)
-                # Hover delay only on first row
                 if row == 0:
                     time.sleep(state.pc_hover_delay / 1000.0)
                 key_press(state.pc_drop_key)
                 if state.pc_drop_sleep > 0:
                     time.sleep(state.pc_drop_sleep / 1000.0)
 
-        # OCR storage check after each full grid pass (skip first pass
-        # to let items start dropping before reading the count)
+        # Skip first pass to let items start dropping before reading the count
         if pass_num >= 2:
             chk = pc_check_storage_empty()
             _macro_log(f"ComboPlay: drop pass {pass_num} OCR={chk}")
@@ -1981,14 +1748,10 @@ def _combo_popcorn_drop_loop():
             else:
                 ocr_fails = 0
 
-        time.sleep(0.005)  # Inter-pass sleep
+        time.sleep(0.005)
 
 
 def _combo_magic_f_give():
-    """ControlClick the transfer-to-other button for magic F give.
-
-    ControlClick the transfer-to-other button.
-    """
     from input.window import control_click
     hwnd = win_exist(state.ark_window)
     if not hwnd:
@@ -1999,10 +1762,6 @@ def _combo_magic_f_give():
 
 
 def _combo_show_tooltip(m: dict, phase: str | None = None):
-    """Build and show combo status tooltip.
-
-    Shows current mode, filter, and key list.
-    """
     pc_filters = m.get("popcorn_filters", []) or [""]
     mf_filters = m.get("magic_f_filters", []) or [""]
 
@@ -2047,10 +1806,6 @@ def _combo_show_tooltip(m: dict, phase: str | None = None):
 
 
 def macro_dialog_open() -> bool:
-    """Return True if any macro wizard/edit/save dialog is currently active.
-
-    Checks all macro wizard/edit/save dialog attributes on state.
-    """
     for gui_attr in ("guided_wiz_gui", "combo_wiz_gui", "macro_save_gui",
                      "macro_edit_gui", "macro_repeat_gui", "macro_help_gui"):
         gui = getattr(state, gui_attr, None)
@@ -2063,12 +1818,7 @@ def macro_dialog_open() -> bool:
     return False
 
 
-# ---------------------------------------------------------------------------
-#  Event replay helper
-# ---------------------------------------------------------------------------
-
 def _replay_event(evt: dict, mouse_speed: int = 0, settle: int = 0):
-    """Replay a single recorded event."""
     etype = evt["type"]
     if etype == "K":
         d = evt.get("dir", "p")
@@ -2102,15 +1852,7 @@ def _replay_event(evt: dict, mouse_speed: int = 0, settle: int = 0):
             mouse_up(button)
 
 
-# ---------------------------------------------------------------------------
-#  Stop playback
-# ---------------------------------------------------------------------------
-
 def macro_stop_play():
-    """Stop any playing macro and disarm.
-
-    Does NOT show GUI — that is handled by the F1 handler.
-    """
     was_idx = state.macro_active_idx
     was_name = ""
     if 0 < was_idx <= len(state.macro_list):
@@ -2133,24 +1875,11 @@ def _macro_save_if_dirty():
         state.macro_speed_dirty = False
 
 
-# ---------------------------------------------------------------------------
-#  Hotkey management
-# ---------------------------------------------------------------------------
-
 def macro_register_hotkeys(enable: bool):
-    """Register or unregister macro hotkeys.
-
-    When enabled:
-      - Z is bound to macro_z_cycle.
-      - Up/Down arrows are bound for speed adjustment (if macro tab active).
-      - The selected macro's hotkey is bound for playback.
-    When disabled:
-      - All macro hotkeys are unregistered.
-    """
     state.macro_hotkeys_live = enable
 
     try:
-        hk = state._hotkey_mgr  # type: ignore[attr-defined]
+        hk = state._hotkey_mgr
     except AttributeError:
         return
 
@@ -2165,7 +1894,6 @@ def macro_register_hotkeys(enable: bool):
         hk.unregister("up", _macro_speed_up)
         hk.unregister("down", _macro_speed_down)
 
-    # Unregister all macro-specific hotkeys first
     for m in state.macro_list:
         hk_key = m.get("hotkey", "")
         if hk_key and hk_key not in ("...", "q", "f"):
@@ -2173,7 +1901,6 @@ def macro_register_hotkeys(enable: bool):
                 continue
             hk.unregister(hk_key)
 
-    # Register the selected macro's hotkey
     if enable and state.macro_list:
         idx = state.macro_selected_idx
         if idx < 1 or idx > len(state.macro_list):
@@ -2188,10 +1915,9 @@ def macro_register_hotkeys(enable: bool):
 
 
 def macro_block_all_hotkeys():
-    """Unregister every macro hotkey (used when entering a conflicting mode)."""
     state.macro_hotkeys_live = False
     try:
-        hk = state._hotkey_mgr  # type: ignore[attr-defined]
+        hk = state._hotkey_mgr
     except AttributeError:
         return
 
@@ -2208,11 +1934,6 @@ def macro_block_all_hotkeys():
 
 
 def _macro_hotkey_handler(idx: int):
-    """Called when a macro's assigned hotkey is pressed.
-
-    Full flow: dialog check -> mouse/ARK check -> busy check ->
-    GUI-visible arm flow → pyro tap/hold → guided/combo launch → play.
-    """
     if not state.macro_hotkeys_live or macro_dialog_open():
         return
 
@@ -2226,7 +1947,6 @@ def _macro_hotkey_handler(idx: int):
     mx, my = get_cursor_pos()
     mouse_on = (0 <= mx < screen_width and 0 <= my < screen_height)
 
-    # If not in ARK, not GUI visible, and mouse off screen → pass through
     if not is_ark and not state.gui_visible and not mouse_on:
         if state.macro_armed and sel["type"] == "pyro" and hk:
             send("{" + hk + "}")
@@ -2236,10 +1956,10 @@ def _macro_hotkey_handler(idx: int):
         return
 
     if state.macro_playing:
-        # Already playing — toggle off for repeat/recorded types
         if sel["type"] in ("repeat", "recorded"):
             state.macro_playing = False
             state.macro_active_idx = 0
+            state.macro_armed = True
             _macro_save_if_dirty()
             key_str = f" [{hk.upper()}]" if hk else ""
             _tooltip(
@@ -2255,7 +1975,6 @@ def _macro_hotkey_handler(idx: int):
         timers.set_timer("busy_tip", lambda: _tooltip(None), -2000)
         return
 
-    # GUI visible → hide and arm (except guided/combo/pyro which need ARK)
     if state.gui_visible:
         if sel["type"] in ("guided", "combo", "pyro"):
             return
@@ -2278,14 +1997,13 @@ def _macro_hotkey_handler(idx: int):
     if not state.macro_armed:
         return
 
-    # Pyro: tap vs hold detection (250ms)
+    # Pyro: tap vs hold detection (250ms threshold)
     if sel["type"] == "pyro" and hk:
         vk = _key_to_vk(hk)
         if vk:
             deadline = time.perf_counter() + 0.250
             while time.perf_counter() < deadline:
                 if not _sys.get_async_key_state(vk):
-                    # Released quickly = tap = play macro
                     macro_play_by_index(idx)
                     return
                 time.sleep(0.010)
@@ -2296,20 +2014,17 @@ def _macro_hotkey_handler(idx: int):
             key_up(hk)
             return
 
-    # Guided/Combo: launch immediately (stay armed)
     if sel["type"] in ("guided", "combo"):
         _macro_log(f"HotkeyHandler: {sel['type']} '{sel['name']}' triggered — launching play")
         macro_play_by_index(idx)
         return
 
-    # Recorded/Repeat: disarm and play
     state.macro_armed = False
     macro_register_hotkeys(True)
     macro_play_by_index(idx)
 
 
 def _key_to_vk(key: str) -> int | None:
-    """Convert a key name to a virtual key code."""
     vk_map = {
         "r": 0x52, "q": 0x51, "z": 0x5A, "x": 0x58, "c": 0x43,
         "f": 0x46, "e": 0x45, "g": 0x47, "t": 0x54, "v": 0x56,
@@ -2318,16 +2033,7 @@ def _key_to_vk(key: str) -> int | None:
     return vk_map.get(key.lower())
 
 
-# ---------------------------------------------------------------------------
-#  Z key — cycle to next macro
-# ---------------------------------------------------------------------------
-
 def macro_z_cycle():
-    """Cycle to the next macro in the list (Z key handler).
-
-    If a macro is currently playing, it is stopped first.
-    For guided/combo macros, playback starts immediately.
-    """
     hwnd = win_exist(state.ark_window)
     if not hwnd or get_foreground_window() != hwnd:
         return
@@ -2358,12 +2064,7 @@ def macro_z_cycle():
         _tooltip(f" > {sel['name']}{key_str}\n Press hotkey to run  |  Z = next  |  F1 = Stop")
 
 
-# ---------------------------------------------------------------------------
-#  Speed adjustment
-# ---------------------------------------------------------------------------
-
 def _macro_speed_down():
-    """Increase speed multiplier (slower playback) — Down arrow handler."""
     if not state.macro_tab_active or not state.macro_list:
         return
     idx = state.macro_selected_idx
@@ -2384,7 +2085,6 @@ def _macro_speed_down():
 
 
 def _macro_speed_up():
-    """Decrease speed multiplier (faster playback) — Up arrow handler."""
     if not state.macro_tab_active or not state.macro_list:
         return
     idx = state.macro_selected_idx
