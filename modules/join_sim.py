@@ -16,9 +16,6 @@ log = logging.getLogger(__name__)
 TIMER_NAME = "sim_loop"
 SIM_INTERVAL_MS = 10
 
-# ---------------------------------------------------------------------------
-#  State names recognised by the state machine
-# ---------------------------------------------------------------------------
 STATES = [
     "MainMenu", "MiddleMenu", "ServerBrowser", "ServerSelected",
     "ModMenu", "ServerFull", "ServerFull2", "ServerFull3",
@@ -27,15 +24,11 @@ STATES = [
 ]
 
 
-# ---------------------------------------------------------------------------
-#  Helpers
-# ---------------------------------------------------------------------------
-
 def _tooltip(text: str | None = None):
     try:
         from gui.tooltip import show_tooltip, hide_tooltip, update_tooltip
         if text:
-            update_tooltip(text)  # update in-place to avoid flicker
+            update_tooltip(text)
         else:
             hide_tooltip()
     except Exception:
@@ -44,7 +37,6 @@ def _tooltip(text: str | None = None):
 
 
 def sim_log_msg(msg: str):
-    """Append a timestamped message to the sim log ring buffer."""
     ts = time.strftime("%H:%M:%S")
     state.sim_log.append(f"{ts} {msg}")
     if len(state.sim_log) > 100:
@@ -53,7 +45,6 @@ def sim_log_msg(msg: str):
 
 
 def update_sim_status(text: str):
-    """Update the sim status text in the GUI label and optional tooltip."""
     state.sim_cycle_status = text
     _update_gui_status(text)
     if state.toolbox_enabled:
@@ -61,7 +52,6 @@ def update_sim_status(text: str):
 
 
 def _update_gui_status(text: str):
-    """Write to the green SimStatus label in tab_joinsim (thread-safe)."""
     try:
         root = state.root
         js = getattr(state, "_tab_joinsim", None)
@@ -73,7 +63,6 @@ def _update_gui_status(text: str):
 
 
 def _server_number() -> str:
-    """Get the server number from state (set when sim starts)."""
     return state.server_number or ""
 
 
@@ -82,7 +71,6 @@ def _game_hwnd() -> int:
 
 
 def _input_hwnd() -> int:
-    """Get the hwnd to send input to (child render surface if it exists)."""
     cached = getattr(state, "_sim_input_hwnd", 0)
     if cached and win_exist(state.game_window):
         return cached
@@ -109,22 +97,7 @@ def _send_window_text(text: str):
         control_send_text(hwnd, text)
 
 
-# ---------------------------------------------------------------------------
-#  State detection — placeholders
-#  In the full port these read pixel colours from a captured screenshot
-#  and compare against a table of state descriptors. Here we provide the
-#  function signatures; the actual table and capture logic depend on the
-#  capture module (input.capture) and the per-resolution state tables that
-#  are built at startup.
-# ---------------------------------------------------------------------------
-
 def check_state() -> str:
-    """Capture the game window and determine the current UI state (SIM A).
-
-    Iterates through a list of state descriptors (pixel position + expected
-    colour) with tolerance matching.  Returns the first matching state name,
-    or empty string if no match.
-    """
     try:
         from input.capture import capture_window, get_pixel_argb, release_capture
     except ImportError:
@@ -141,8 +114,6 @@ def check_state() -> str:
     result = ""
     color_dump = ""
 
-    # state.sim_state_table_a should be set up at init with dicts:
-    # {"name": str, "x": int, "y": int, "c": int, "calt": int|None, "x2": ..., "y2": ..., "c2": ...}
     state_table = getattr(state, "sim_state_table_a", [])
 
     for item in state_table:
@@ -161,17 +132,14 @@ def check_state() -> str:
 
         if match:
             # NoSessions 3-pixel guard — prevents false detections during loading
-            # 3-pixel guard: confirm white pixel, dark row pixel, and NOT BeLogo
             if item["name"] == "NoSessions":
                 gw = state.game_width or 2560
                 gh = state.game_height or 1440
-                # Confirm pixel must be white (0xFFFFFFFF)
                 confirm_x = int(0.3786458333 * gw)
                 confirm_y = int(0.2101851852 * gh)
                 confirm_col = get_pixel_argb(img, confirm_x, confirm_y)
                 if not is_color_similar(confirm_col & 0xFFFFFF, 0xFFFFFF, state.col_tol):
                     continue
-                # Row check pixel must be dark (RGB sum <= 150)
                 row_x = int(0.2083333333 * gw)
                 row_y = int(0.2305555556 * gh)
                 row_col = get_pixel_argb(img, row_x, row_y) & 0xFFFFFF
@@ -180,7 +148,6 @@ def check_state() -> str:
                 row_b = row_col & 0xFF
                 if (row_r + row_g + row_b) > 150:
                     continue
-                # BeLogo pixel must NOT match (we're NOT on ServerSelected)
                 be_x = int(0.056250000000000001 * gw)
                 be_y = int(0.3037037037037037 * gh)
                 be_col = get_pixel_argb(img, be_x, be_y)
@@ -188,7 +155,6 @@ def check_state() -> str:
                 if be_col == be_logo or is_color_similar(be_col & 0xFFFFFF, be_logo & 0xFFFFFF, state.col_tol):
                     continue
 
-            # Secondary pixel confirmation
             if "x2" in item and "y2" in item and "c2" in item:
                 c2 = get_pixel_argb(img, item["x2"], item["y2"])
                 if c2 == item["c2"] or is_color_similar(c2 & 0xFFFFFF, item["c2"] & 0xFFFFFF, state.col_tol):
@@ -205,10 +171,6 @@ def check_state() -> str:
 
 
 def check_state_b() -> str:
-    """Capture the game window and determine the current UI state (SIM B).
-
-    Uses simpler exact-match logic without tolerance fallback.
-    """
     try:
         from input.capture import capture_window, get_pixel_argb, release_capture
     except ImportError:
@@ -251,22 +213,11 @@ def check_state_b() -> str:
     return result
 
 
-# ---------------------------------------------------------------------------
-#  Offset references — set by the GUI / resolution scaler at startup
-# ---------------------------------------------------------------------------
-# These are attributes on state (e.g. state.back_offset_x).
-# We read them dynamically to avoid hard-coding resolution-specific values.
-
 def _off(name: str, default: int = 0) -> int:
     return int(getattr(state, name, default))
 
 
-# ---------------------------------------------------------------------------
-#  Main dispatch
-# ---------------------------------------------------------------------------
-
 def sim_loop():
-    """Main sim timer callback — increments cycle count, dispatches to A or B."""
     if not getattr(state, "auto_sim_check", False):
         return
     state.sim_cycle_count += 1
@@ -276,15 +227,9 @@ def sim_loop():
         sim_loop_a()
 
 
-# ---------------------------------------------------------------------------
-#  SIM A — full error handling
-# ---------------------------------------------------------------------------
-
 def sim_loop_a():
-    """SIM-A state machine — handles every known UI state with stuck recovery."""
     s = check_state()
 
-    # Stuck detection
     if s != "WaitingToJoin":
         state.wm = 0
 
@@ -307,12 +252,9 @@ def sim_loop_a():
         state.mm = 0
         return
 
-    # --- Loading screen guard ---
-    # Once incounter is above a threshold, the game is likely loading into
-    # a server.  Transient pixel matches during the loading screen should
-    # NOT trigger menu actions — just keep counting towards success.
+    # Once incounter is above threshold, the game is likely loading into a server.
+    # Transient pixel matches during the loading screen should NOT trigger menu actions.
     if state.incounter >= 10 and s != "":
-        # Treat as Unknown — keep incrementing
         state.incounter += 1
         update_sim_status(f"Loading In: {state.incounter}/50")
         if state.incounter % 25 == 0:
@@ -320,8 +262,6 @@ def sim_loop_a():
         if state.incounter >= 50:
             _sim_success()
         return
-
-    # --- State handlers ---
 
     if s == "SinglePlayer":
         sim_log_msg(f"[{state.sim_cycle_count}] SinglePlayer — backing out")
@@ -363,8 +303,7 @@ def sim_loop_a():
             update_sim_status("Server Selected - searching first")
             _click_window(_off("server_search_offset_x"), _off("server_search_offset_y"))
             time.sleep(0.1)
-            # Clear field: send enough backspaces to wipe any existing text
-            # (Ctrl+A doesn't work via PostMessage — modifier state not set)
+            # Ctrl+A doesn't work via PostMessage — modifier state not set
             for _ in range(20):
                 _send_window("{BackSpace}")
             time.sleep(0.1)
@@ -421,8 +360,7 @@ def sim_loop_a():
                 update_sim_status("Server Browser - searching")
                 _click_window(_off("server_search_offset_x"), _off("server_search_offset_y"))
                 time.sleep(0.1)
-                # Clear field: send enough backspaces to wipe any existing text
-                # (Ctrl+A doesn't work via PostMessage — modifier state not set)
+                # Ctrl+A doesn't work via PostMessage — modifier state not set
                 for _ in range(20):
                     _send_window("{BackSpace}")
                 time.sleep(0.1)
@@ -455,7 +393,6 @@ def sim_loop_a():
         time.sleep(0.25)
 
     else:
-        # Unknown / possibly in-game
         hwnd = _game_hwnd()
         if hwnd:
             gx, gy, _, _ = win_get_pos(hwnd)
@@ -470,12 +407,7 @@ def sim_loop_a():
                 state.incounter = 0
 
 
-# ---------------------------------------------------------------------------
-#  SIM B — simpler variant
-# ---------------------------------------------------------------------------
-
 def sim_loop_b():
-    """SIM-B state machine — simpler matching, fewer states."""
     s = check_state_b()
 
     if s == state.stuck_state and s != "":
@@ -495,7 +427,6 @@ def sim_loop_b():
         state.nosessions = 0
         return
 
-    # Loading screen guard — same as SIM A
     if state.incounter >= 10 and s != "":
         state.incounter += 1
         update_sim_status(f"Loading In: {state.incounter}/50")
@@ -533,8 +464,7 @@ def sim_loop_b():
             update_sim_status("Server Selected - searching first")
             _click_window(_off("server_search_offset_x"), _off("server_search_offset_y"))
             time.sleep(0.1)
-            # Clear field: send enough backspaces to wipe any existing text
-            # (Ctrl+A doesn't work via PostMessage — modifier state not set)
+            # Ctrl+A doesn't work via PostMessage — modifier state not set
             for _ in range(20):
                 _send_window("{BackSpace}")
             time.sleep(0.1)
@@ -553,8 +483,7 @@ def sim_loop_b():
             update_sim_status("Server Browser - searching")
             _click_window(_off("server_search_offset_x"), _off("server_search_offset_y"))
             time.sleep(0.1)
-            # Clear field: send enough backspaces to wipe any existing text
-            # (Ctrl+A doesn't work via PostMessage — modifier state not set)
+            # Ctrl+A doesn't work via PostMessage — modifier state not set
             for _ in range(20):
                 _send_window("{BackSpace}")
             time.sleep(0.1)
@@ -594,7 +523,6 @@ def sim_loop_b():
         state.nosessions = 0
 
     else:
-        # Unknown / possibly in-game
         hwnd = _game_hwnd()
         if hwnd:
             gx, gy, _, _ = win_get_pos(hwnd)
@@ -607,12 +535,7 @@ def sim_loop_b():
                 state.incounter = 0
 
 
-# ---------------------------------------------------------------------------
-#  Success / toggle
-# ---------------------------------------------------------------------------
-
 def _sim_success():
-    """Called when we detect the player is in-server (incounter >= 50)."""
     sim_log_msg(f"[{state.sim_cycle_count}] IN SERVER — success after {state.sim_cycle_count} cycles")
     timers.stop_timer(TIMER_NAME)
     state.auto_sim_check = False
@@ -620,7 +543,6 @@ def _sim_success():
     state.sim_cycle_status = "Idle"
     _tooltip(None)
 
-    # Clear the green GUI status label and reset Start button
     _update_gui_status("")
     _reset_gui_button()
 
@@ -634,18 +556,16 @@ def _sim_success():
             import ctypes as _ct
             _ct.windll.user32.SetWindowPos(
                 hwnd, 0, 0, 0, 0, 0,
-                0x0001 | 0x0004,  # SWP_NOSIZE | SWP_NOZORDER
+                0x0001 | 0x0004,
             )
         state._sim_input_hwnd = 0
         win_activate(hwnd)
 
-    # Taskbar restore
     try:
         _taskbar_restore()
     except Exception:
         pass
 
-    # Push notification
     try:
         from util.ntfy import ntfy_push
         ntfy_push("max", f"You are in server {_server_number()}", key=state.ntfy_key)
@@ -654,7 +574,6 @@ def _sim_success():
 
 
 def _reset_gui_button():
-    """Reset the Start/Stop button text back to 'Start'."""
     try:
         root = state.root
         js = getattr(state, "_tab_joinsim", None)
@@ -665,7 +584,6 @@ def _reset_gui_button():
 
 
 def _minimize_gui():
-    """Minimize the AIO+ window to allow seamless gameplay."""
     try:
         root = state.root
         if root:
@@ -675,11 +593,6 @@ def _minimize_gui():
 
 
 def _taskbar_auto_hide():
-    """Auto-hide the Windows taskbar so it doesn't overlap ARK.
-
-    Uses ctypes to call SHAppBarMessage(ABM_SETSTATE) with ABS_AUTOHIDE.
-    Windows-only — no-op on other platforms.
-    """
     import sys
     if sys.platform != "win32":
         return
@@ -714,12 +627,6 @@ def _taskbar_auto_hide():
 
 
 def _taskbar_restore():
-    """Restore the Windows taskbar if it was auto-hidden for sim.
-
-    Uses ctypes to call SHAppBarMessage(ABM_SETSTATE) to clear the
-    ABS_AUTOHIDE flag on the taskbar.
-    Windows-only — no-op on other platforms.
-    """
     import sys
     if sys.platform != "win32":
         return
@@ -747,18 +654,16 @@ def _taskbar_restore():
         abd = APPBARDATA()
         abd.cbSize = ctypes.sizeof(APPBARDATA)
         abd.hWnd = tray_hwnd
-        abd.lParam = 0  # 0 = not autohide, not always-on-top (normal)
+        abd.lParam = 0
         ctypes.windll.shell32.SHAppBarMessage(ABM_SETSTATE, ctypes.byref(abd))
     except Exception:
         pass
 
 
 def auto_sim_button_toggle():
-    """Start or stop the sim loop (GUI button handler)."""
     state.auto_sim_check = not getattr(state, "auto_sim_check", False)
 
     if state.auto_sim_check:
-        # Reset counters
         state.mm = 0
         state.rm = 0
         state.sm = 0
@@ -780,7 +685,6 @@ def auto_sim_button_toggle():
             sim_log_msg(f"Server: {_server_number()}  UseLast: {state.use_last}  Mods: {state.mods_enabled}")
             sim_log_msg(f"GameWindow: {gw}x{gh} at ({gx},{gy})")
 
-            # Log window class and detect child render surface
             main_class = _get_class_name(hwnd)
             sim_log_msg(f"MainHwnd: {hwnd} class='{main_class}'")
             input_hwnd = find_input_child(hwnd)
@@ -800,7 +704,7 @@ def auto_sim_button_toggle():
                 import ctypes as _ct
                 _ct.windll.user32.SetWindowPos(
                     hwnd, 0, 1, 0, 0, 0,
-                    0x0001 | 0x0004,  # SWP_NOSIZE | SWP_NOZORDER
+                    0x0001 | 0x0004,
                 )
 
         _taskbar_auto_hide()
@@ -818,7 +722,7 @@ def auto_sim_button_toggle():
                 import ctypes as _ct
                 _ct.windll.user32.SetWindowPos(
                     hwnd, 0, 0, 0, 0, 0,
-                    0x0001 | 0x0004,  # SWP_NOSIZE | SWP_NOZORDER
+                    0x0001 | 0x0004,
                 )
             state._sim_input_hwnd = 0
 

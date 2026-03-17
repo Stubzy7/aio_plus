@@ -4,20 +4,12 @@ import time
 
 
 class TimerManager:
-    """Manage named periodic timers."""
 
     def __init__(self):
         self._timers: dict[str, dict] = {}
         self._lock = threading.Lock()
 
     def set_timer(self, name: str, callback, period_ms: int):
-        """Set a timer.
-
-        Args:
-            name: Unique identifier for this timer.
-            callback: Function to call.
-            period_ms: Positive = recurring, negative = one-shot, 0 = stop.
-        """
         self.stop_timer(name)
 
         if period_ms == 0:
@@ -56,21 +48,18 @@ class TimerManager:
         t.start()
 
     def stop_timer(self, name: str):
-        """Stop a timer by name."""
         with self._lock:
             entry = self._timers.pop(name, None)
         if entry:
             entry["running"] = False
 
     def stop_all(self):
-        """Stop all timers."""
         with self._lock:
             names = list(self._timers.keys())
         for name in names:
             self.stop_timer(name)
 
     def is_running(self, name: str) -> bool:
-        """Check if a timer is currently running."""
         with self._lock:
             entry = self._timers.get(name)
             return entry is not None and entry["running"]

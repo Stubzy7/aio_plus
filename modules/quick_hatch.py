@@ -17,15 +17,7 @@ _MODE_NAMES = {1: "All", 2: "Single"}
 _MAX_LOG = 50
 
 
-# ---------------------------------------------------------------------------
-#  Circular log
-# ---------------------------------------------------------------------------
-
 def qh_log(msg: str):
-    """Append a timestamped message to the Quick Hatch circular log.
-
-    Appends a timestamped message to the circular log.
-    """
     ts = time.strftime("%H:%M:%S")
     entry = f"{ts} {msg}"
     state.qh_log_entries.append(entry)
@@ -34,12 +26,7 @@ def qh_log(msg: str):
     log.debug(msg)
 
 
-# ---------------------------------------------------------------------------
-#  Pixel helpers
-# ---------------------------------------------------------------------------
-
 def _color_diff_sum(c1: int, c2: int) -> int:
-    """Sum of per-channel absolute differences between two 0xRRGGBB colors."""
     r1 = (c1 >> 16) & 0xFF
     g1 = (c1 >> 8) & 0xFF
     b1 = c1 & 0xFF
@@ -50,11 +37,6 @@ def _color_diff_sum(c1: int, c2: int) -> int:
 
 
 def qh_count_eggs() -> int:
-    """Count how many egg slots are empty by comparing to the empty color.
-
-    Returns the number of slots whose color
-    is within tolerance of ``state.qh_empty_color``.
-    """
     ref = state.qh_empty_color
     tol = state.qh_empty_tol
     count = 0
@@ -67,11 +49,6 @@ def qh_count_eggs() -> int:
 
 def wait_for_pixel(x: int, y: int, color: int, tol: int = 10,
                    timeout_ms: int = 6000) -> bool:
-    """Wait until the pixel at *(x, y)* matches *color*.
-
-    Polls the pixel with NFPixelWait so NF mode is respected.
-    Uses NFPixelWait internally so NF mode is respected.
-    """
     interval = 0.016
     max_polls = timeout_ms // 16
     baseline = 0
@@ -88,18 +65,7 @@ def wait_for_pixel(x: int, y: int, color: int, tol: int = 10,
     return False
 
 
-# ---------------------------------------------------------------------------
-#  Mode control
-# ---------------------------------------------------------------------------
-
 def qh_toggle_mode(mode: int):
-    """Cycle through hatch modes.
-
-    Cycles through hatch modes: 0=off, 1=all, 2=single.
-
-    Args:
-        mode:  0 = off, 1 = all, 2 = single.
-    """
     if state.qh_armed:
         return
     state.qh_mode = mode
@@ -110,10 +76,6 @@ def qh_toggle_mode(mode: int):
 
 
 def depo_build_tooltip() -> str:
-    """Build tooltip text showing the depo/hatch cycle steps with arrow indicator.
-
-    Shows each cycle step with an arrow on the current one.
-    """
     cycle = state.depo_cycle
     idx = state.depo_cycle_idx
     if not cycle or idx < 1:
@@ -137,10 +99,6 @@ def depo_build_tooltip() -> str:
 
 
 def depo_cycle_next():
-    """Advance to the next step in the depo cycle (Q key handler).
-
-    Wraps around to the first step when reaching the end.
-    """
     cycle = state.depo_cycle
     if not cycle:
         return
@@ -150,13 +108,8 @@ def depo_cycle_next():
 
 
 def depo_f_pressed():
-    """Handle F key when a depo (non-hatch) cycle step is active.
-
-    Opens the remote inventory,
-    searches for the filter, transfers all, then closes.
-    """
     if state.qh_running:
-        return  # Don't re-enter during hatch operation
+        return
 
     from input.window import get_foreground_window, find_window
     from input.keyboard import send_text_vk
@@ -167,7 +120,7 @@ def depo_f_pressed():
         return
     cur = cycle[idx - 1]
     if not cur["filter"]:
-        return  # hatch step — handled by qh_f_pressed
+        return
 
     ark_hwnd = find_window(title=state.ark_window)
     if not ark_hwnd or get_foreground_window() != ark_hwnd:
@@ -204,12 +157,6 @@ def depo_f_pressed():
 
 
 def qh_start():
-    """Arm (or disarm) the Quick Hatch system.
-
-    When arming, hides the GUI,
-    assembles the depo cycle, and shows a tooltip.
-    """
-    # ── Disarm path ─────────────────────────────────────────────────
     if (
         state.qh_armed
         or state.run_claim_and_name_script
@@ -229,9 +176,6 @@ def qh_start():
         log.info("Quick Hatch disarmed")
         return
 
-    # ── Arm path ────────────────────────────────────────────────────
-    # Read from checkbox-synced "enabled" flags, not the active flags
-    # (reads btn.Value, not the global active flags)
     has_hatch = state.qh_mode > 0
     has_cn = getattr(state, "cn_enabled", False)
     has_ns = getattr(state, "ns_enabled", False)
@@ -245,7 +189,6 @@ def qh_start():
 
     state.gui_visible = False
 
-    # Assemble depo cycle — set active flags here (not in GUI sync)
     state.depo_cycle = []
     if has_depo_e:
         state.depo_eggs_active = True
@@ -253,7 +196,6 @@ def qh_start():
     if has_depo_em:
         state.depo_embryo_active = True
         state.depo_cycle.append({"label": "Embryo", "filter": "Embryo"})
-    # Only add hatch to cycle when there are depo steps to cycle between
     if has_hatch and has_depo:
         state.depo_cycle.append({"label": "Hatch", "filter": ""})
     if has_depo:
@@ -262,7 +204,6 @@ def qh_start():
     if has_hatch:
         state.qh_armed = True
 
-    # Activate CN/NS scripts
     if has_cn:
         state.run_claim_and_name_script = True
         state.run_name_and_spay_script = False
@@ -275,23 +216,10 @@ def qh_start():
              mode_label, has_cn, has_ns, len(state.depo_cycle))
 
 
-# ---------------------------------------------------------------------------
-#  F-key handler
-# ---------------------------------------------------------------------------
-
 def qh_f_pressed():
-    """Handle the F key while Quick Hatch is armed.
-
-    Handles F key while Quick Hatch is armed.
-
-    Waits for the inventory pixel, then:
-      * **All mode** — clicks claim+name repeatedly until inventory empty.
-      * **Single mode** — performs one claim+name pair, polls for egg count.
-    """
     if not state.qh_armed or state.qh_running:
         return
 
-    # Check ARK is focused
     from input.window import get_foreground_window, find_window
     ark_hwnd = find_window(title=state.ark_window)
     fg = get_foreground_window()
@@ -354,11 +282,10 @@ def qh_f_pressed():
         elapsed = (time.perf_counter() - start_tick) * 1000
         qh_log(f"Inventory ready — starting clicks +{elapsed:.0f}ms")
 
-        # Enforce a minimum of 15ms to account for system timer granularity.
+        # Enforce a minimum of 15ms to account for system timer granularity
         delay = max(state.qh_click_delay, 15) / 1000.0
 
         if state.qh_mode == 1:
-            # ── All mode ────────────────────────────────────────────
             click_pairs = 0
             max_pairs = 200
             min_pairs = 3
@@ -392,12 +319,11 @@ def qh_f_pressed():
                     diff = _color_diff_sum(col, state.qh_empty_color)
                     qh_log(f"All mode — pair {click_pairs}  emptyPix=0x{col:06X}  diff={diff}  tol={state.qh_empty_tol}")
                     if diff > state.qh_empty_tol:
-                        # First trigger — double-check after 50ms
+                        # Triple-check to avoid transient UI shifts causing false positives
                         time.sleep(0.050)
                         col2 = px_get(state.qh_empty_pix_x, state.qh_empty_pix_y)
                         diff2 = _color_diff_sum(col2, state.qh_empty_color)
                         if diff2 > state.qh_empty_tol:
-                            # Triple-check after another 50ms to avoid transient UI shifts
                             time.sleep(0.050)
                             col3 = px_get(state.qh_empty_pix_x, state.qh_empty_pix_y)
                             diff3 = _color_diff_sum(col3, state.qh_empty_color)
@@ -413,7 +339,6 @@ def qh_f_pressed():
             qh_log(f"All mode — {click_pairs} click pairs done")
 
         else:
-            # ── Single mode ─────────────────────────────────────────
             scan1 = qh_count_eggs()
             time.sleep(0.050)
             scan2 = qh_count_eggs()
@@ -424,7 +349,6 @@ def qh_f_pressed():
                 qh_log("Single mode — no eggs in inventory")
                 from gui.tooltip import show_tooltip
                 show_tooltip(" No eggs detected", 0, 0)
-                # Auto-clear after 1.5s — restore armed tooltip
                 import threading as _th
                 def _restore_tt():
                     if state.depo_cycle:
@@ -458,10 +382,8 @@ def qh_f_pressed():
 
                 qh_log(f"Single mode — pre: {egg_count}  post: {remaining}  polls: {poll_count}")
 
-                # Show remaining egg count tooltip
                 from gui.tooltip import show_tooltip
                 if state.depo_cycle:
-                    # Restore depo cycle tooltip (includes CN/NS + Q=cycle)
                     show_tooltip(depo_build_tooltip(), 0, 0)
                 else:
                     if remaining > 0:
@@ -508,19 +430,7 @@ def qh_f_pressed():
     state.qh_running = False
 
 
-# ---------------------------------------------------------------------------
-#  Deposit cycle — transfer eggs/embryos to a nearby container
-# ---------------------------------------------------------------------------
-
 def _run_deposit_cycle(item_type: str):
-    """Open a nearby container, search for eggs/embryos, transfer all, close.
-
-    Looks down, opens the container
-    with F, waits for the remote inventory, searches, transfers, closes.
-
-    Args:
-        item_type: "eggs" or "embryo".
-    """
     from input.keyboard import send_text_vk
 
     hwnd = win_exist(state.ark_window)

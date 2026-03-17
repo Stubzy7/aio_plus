@@ -6,7 +6,7 @@ from contextlib import contextmanager
 _u32 = ctypes.windll.user32
 _k32 = ctypes.windll.kernel32
 
-# Set proper 64-bit return types once at import
+# 64-bit return types must be set once at import
 _k32.GlobalAlloc.restype = ctypes.c_void_p
 _k32.GlobalAlloc.argtypes = [wt.UINT, ctypes.c_size_t]
 _k32.GlobalLock.restype = ctypes.c_void_p
@@ -22,16 +22,6 @@ CF_UNICODETEXT = 13
 
 @contextmanager
 def win32_clipboard():
-    """Context manager for safe Win32 clipboard access.
-
-    Ensures CloseClipboard is always called, even on error.
-
-    Usage::
-
-        with win32_clipboard() as u32:
-            u32.EmptyClipboard()
-            ...
-    """
     if not _u32.OpenClipboard(0):
         raise RuntimeError("Failed to open clipboard")
     try:
@@ -41,7 +31,6 @@ def win32_clipboard():
 
 
 def get_clipboard_text() -> str | None:
-    """Read current clipboard text, or None if empty/unavailable."""
     try:
         with win32_clipboard():
             h = _u32.GetClipboardData(CF_UNICODETEXT)
@@ -59,7 +48,6 @@ def get_clipboard_text() -> str | None:
 
 
 def set_clipboard_text(text: str) -> bool:
-    """Set clipboard to text. Returns True on success."""
     try:
         with win32_clipboard() as u32:
             u32.EmptyClipboard()

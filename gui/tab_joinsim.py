@@ -4,12 +4,10 @@ from tkinter import ttk
 from gui.theme import *
 from core.state import state
 
-# Standard button style matching craft tab: dark bg, red accent text
 BTN_STYLE = dict(fg=FG_ACCENT, bg=BG_DARK, activebackground=BG_DARK, activeforeground=FG_ACCENT)
 
 
 def _update_label(label_name: str, text: str):
-    """Update a Tab 1 status label from any thread. Safe to call from modules."""
     try:
         root = state.root
         js = getattr(state, "_tab_joinsim", None)
@@ -43,18 +41,15 @@ def update_gmk_status(text: str):
 
 
 class TabJoinSim:
-    """Builds all widgets for the JoinSim tab inside *parent_frame*."""
 
     def __init__(self, parent_frame: ttk.Frame, state):
         self.frame = parent_frame
         self.state = state
         self._build()
 
-    # ------------------------------------------------------------------
     def _build(self):
         f = self.frame
 
-        # --- Info banner ---
         self.info_text = tk.Label(
             f, text="\nRUN AT STANDARD GAMMA\nSTART ON MAIN MENU OR SERVER LIST",
             font=FONT_SMALL_BOLD, fg=FG_ACCENT, bg=BG_COLOR,
@@ -62,14 +57,12 @@ class TabJoinSim:
         )
         self.info_text.place(x=40, y=5, width=280, height=44)
 
-        # --- Server row ---
         tk.Label(f, text="Server:", font=FONT_DEFAULT, fg=FG_COLOR, bg=BG_COLOR,
                  anchor="w").place(x=25, y=53, width=65, height=23)
 
         self.server_combo = ttk.Combobox(f, font=FONT_DEFAULT, width=18)
         self.server_combo.place(x=90, y=53, width=180, height=21)
 
-        # Buttons — craft tab style (dark bg, red text)
         self.svr_add_btn = tk.Button(f, text="+", font=FONT_SMALL_BOLD, **BTN_STYLE,
                                       command=self._svr_add)
         self.svr_add_btn.place(x=274, y=53, width=22, height=21)
@@ -82,7 +75,6 @@ class TabJoinSim:
                                       command=self._svr_edit_note)
         self.svr_note_btn.place(x=322, y=53, width=30, height=21)
 
-        # --- Option checkboxes ---
         opt_checks = [
             ("Download Mod / Event", 78, "mods_enabled"),
             ("Use Join Last",        98, "use_last"),
@@ -101,13 +93,11 @@ class TabJoinSim:
                                   **CB_OPTS_NOLABEL)
             chk.place(x=175, y=y + 1, width=40, height=20)
 
-        self.mods_chk = None  # checkboxes built inline above
+        self.mods_chk = None
         self.use_last_chk = None
         self.tooltips_chk = None
-        # Pre-check Enable Tooltips
         self.tooltips_var.set(True)
 
-        # --- Sim A / Sim B checkboxes ---
         self.sim_a_var = tk.BooleanVar(value=True)
         self.sim_a_chk = tk.Checkbutton(f, text="Sim A", variable=self.sim_a_var,
                                         command=self._select_sim_a, **CB_OPTS)
@@ -118,24 +108,20 @@ class TabJoinSim:
                                         command=self._select_sim_b, **CB_OPTS)
         self.sim_b_chk.place(x=30, y=165, width=65, height=20)
 
-        # --- Start button ---
         self.start_btn = tk.Button(f, text="Start", font=FONT_BOLD, **BTN_STYLE,
                                    command=self._toggle_sim)
         self.start_btn.place(x=130, y=147, width=90, height=28)
 
-        # --- Status text ---
         self.sim_status = tk.Label(f, text="", font=FONT_SMALL, fg=FG_GREEN,
                                    bg=BG_COLOR, anchor="center")
         self.sim_status.place(x=25, y=190, width=300, height=14)
 
-        # --- Ntfy row ---
         tk.Label(f, text="Ntfy Key:", font=FONT_DEFAULT, fg=FG_COLOR, bg=BG_COLOR,
                  anchor="w").place(x=25, y=207, width=60, height=23)
 
         self.ntfy_edit = tk.Entry(f, font=FONT_DEFAULT)
         self.ntfy_edit.place(x=90, y=207, width=100, height=20)
 
-        # Ntfy buttons — craft tab style
         self.ntfy_save_btn = tk.Button(f, text="Save", font=FONT_SMALL, **BTN_STYLE,
                                        command=self._ntfy_save)
         self.ntfy_save_btn.place(x=195, y=207, width=42, height=20)
@@ -148,7 +134,6 @@ class TabJoinSim:
                                        command=self._show_ntfy_help)
         self.ntfy_help_btn.place(x=287, y=207, width=22, height=20)
 
-        # --- F-key hint labels (16px spacing, 16px height for descenders) ---
         hint_font = (FONT_FAMILY, 9, "italic")
         hints = [
             (230, " F1 \u2014 Show / Hide UI"),
@@ -166,7 +151,6 @@ class TabJoinSim:
             tk.Label(f, text=text, font=hint_font, fg=FG_DIM, bg=BG_COLOR,
                      anchor="w").place(x=25, y=y, width=300, height=16)
 
-        # --- Overcap dedi edit + countdown (on F2 line) ---
         self.overcap_dedi_edit = tk.Entry(f, font=FONT_TINY, justify="center")
         self.overcap_dedi_edit.insert(0, "3")
         self.overcap_dedi_edit.place(x=135, y=246, width=18, height=16)
@@ -176,56 +160,48 @@ class TabJoinSim:
                                           bg=BG_COLOR, anchor="w")
         self.overcap_countdown.place(x=157, y=248, width=170, height=14)
 
-        # --- OB status text (on F6 line) ---
         self.ob_status_text = tk.Label(f, text="", font=FONT_SMALL, fg=FG_GREEN,
                                        bg=BG_COLOR, anchor="w")
         self.ob_status_text.place(x=190, y=294, height=16)
 
-        # --- OB download text (on F7 line) ---
         self.ob_down_text = tk.Label(f, text="", font=FONT_SMALL, fg=FG_GREEN,
                                      bg=BG_COLOR, anchor="w")
         self.ob_down_text.place(x=190, y=310, height=16)
 
-        # --- F10 Quick Popcorn status ---
         self.pc_f10_status = tk.Label(f, text="", font=FONT_SMALL, fg=FG_GREEN,
                                       bg=BG_COLOR, anchor="w")
         self.pc_f10_status.place(x=150, y=358, width=60, height=16)
 
-        # --- F12 Grab My Kit status ---
         self.gmk_status = tk.Label(f, text="", font=FONT_SMALL, fg=FG_GREEN,
                                    bg=BG_COLOR, anchor="w")
         self.gmk_status.place(x=150, y=374, width=60, height=16)
 
-        # --- Art: Delta Spiral (upper-right) + GG Relief (bottom-right) ---
-        self._art_refs = []  # prevent garbage collection of PhotoImages
+        # prevent GC of PhotoImages
+        self._art_refs = []
         try:
             from PIL import ImageTk
             from gui.art import render_delta_spiral, render_gg_art
 
-            # Delta spiral — upper-right, clipped at GUI edge
             delta_img = render_delta_spiral()
             delta_photo = ImageTk.PhotoImage(delta_img)
             delta_label = tk.Label(f, image=delta_photo, borderwidth=0, bg=BG_COLOR)
             delta_label.place(x=275, y=75)
-            delta_label.lower()  # behind all other widgets
+            delta_label.lower()
             self._art_refs.append(delta_photo)
 
-            # GG relief text — bottom-right
             gg_img = render_gg_art()
             gg_photo = ImageTk.PhotoImage(gg_img)
             gg_label = tk.Label(f, image=gg_photo, borderwidth=0, bg=BG_COLOR)
             gg_label.place(x=240, y=260)
             self._art_refs.append(gg_photo)
 
-            # Lift status labels above the GG art so they aren't covered
             self.ob_status_text.lift()
             self.ob_down_text.lift()
             self.pc_f10_status.lift()
             self.gmk_status.lift()
         except ImportError:
-            pass  # Pillow not available — skip art
+            pass
 
-    # ------------------------------------------------------------------
     def _select_sim_a(self):
         self.sim_a_chk.select()
         self.sim_b_chk.deselect()
@@ -237,13 +213,10 @@ class TabJoinSim:
         state.sim_mode = 2
 
     def _toggle_sim(self):
-        """Start/Stop the sim loop."""
-        # Sync checkbox state into state before toggling
         state.mods_enabled = self.mods_var.get()
         state.use_last = self.use_last_var.get()
         state.toolbox_enabled = self.tooltips_var.get()
 
-        # Read server from combo (parse number from "2386 - main" format)
         svr = self._svr_parse_number(self.server_combo.get())
         if svr:
             state.server_number = svr
@@ -251,7 +224,6 @@ class TabJoinSim:
         from modules.join_sim import auto_sim_button_toggle
         auto_sim_button_toggle()
 
-        # Update button text
         if getattr(state, "auto_sim_check", False):
             self.start_btn.configure(text="Stop")
         else:
@@ -259,10 +231,6 @@ class TabJoinSim:
             self.sim_status.configure(text="")
 
     def _overcap_dedi_edit_changed(self, event=None):
-        """Update the countdown preview when the dedi count changes.
-
-        Updates the countdown preview when the dedi count changes.
-        """
         try:
             val = int(self.overcap_dedi_edit.get().strip())
         except (ValueError, TypeError):
@@ -278,23 +246,19 @@ class TabJoinSim:
         self.overcap_countdown.configure(text=f"~{target_sec}s for {val} dedi")
 
     def _ntfy_save(self):
-        """Save the NTFY key to INI and update state."""
         from core.config import write_ini
         key = self.ntfy_edit.get().strip()
         if not key:
             return
         state.ntfy_key = key
         write_ini("ntfy", "key", key)
-        # Brief green flash to confirm save — keep text visible
         self.ntfy_save_btn.configure(text="Saved!", fg=FG_GREEN)
         self.frame.after(1500, lambda: self.ntfy_save_btn.configure(text="Save", **BTN_STYLE))
 
     def _ntfy_test(self):
-        """Send a test NTFY notification."""
         from util.ntfy import ntfy_push
         ntfy_push("low", "Test Button", key=state.ntfy_key)
 
-    # --- Status label update API (called from modules) ---
     def set_overcap_status(self, text: str):
         self.overcap_countdown.configure(text=text)
 
@@ -323,7 +287,6 @@ class TabJoinSim:
             self.frame)
 
     def _svr_display_values(self) -> list[str]:
-        """Build combo display values like '2386 - main' when note exists."""
         result = []
         for svr in state.svr_list:
             note = state.svr_notes.get(svr, "")
@@ -331,21 +294,18 @@ class TabJoinSim:
         return result
 
     def _svr_display_for(self, svr: str) -> str:
-        """Return display string for a single server number."""
         note = state.svr_notes.get(svr, "")
         return f"{svr} - {note}" if note else svr
 
     @staticmethod
     def _svr_parse_number(display: str) -> str:
-        """Extract the server number from a display string like '2386 - main'."""
         return display.split(" - ", 1)[0].strip()
 
     def refresh_server_combo(self):
-        """Rebuild the combo dropdown with notes. Call after any svr_list/notes change."""
         self.server_combo["values"] = self._svr_display_values()
 
     def _save_server_notes(self):
-        """Re-persist notes after list_save wipes the [Servers] section."""
+        # Re-persist notes after list_save wipes the [Servers] section
         from core.config import write_ini
         for i, svr in enumerate(state.svr_list, start=1):
             write_ini("Servers", f"Note{i}", state.svr_notes.get(svr, ""))
@@ -377,10 +337,6 @@ class TabJoinSim:
             self.server_combo.set("")
 
     def _svr_edit_note(self):
-        """Open a dialog to edit the note for the currently selected server.
-
-        Opens a note editor for the selected server.
-        """
         from gui.theme import BG_DARK, FG_COLOR, FG_ACCENT, FG_WHITE, FONT_DEFAULT, FONT_BOLD
         from gui.tooltip import show_tooltip, hide_tooltip
         from core.config import write_ini
@@ -389,14 +345,12 @@ class TabJoinSim:
         if not num:
             return
 
-        # Server must exist in list
         if num not in state.svr_list:
             show_tooltip(" Add server first with +", 0, 0)
             if state.root:
                 state.root.after(1500, hide_tooltip)
             return
 
-        # Destroy existing note dialog if open (toggle behaviour)
         if state.svr_note_gui is not None:
             try:
                 state.svr_note_gui.destroy()
@@ -422,10 +376,8 @@ class TabJoinSim:
 
         def _save():
             state.svr_notes[num] = note_edit.get().strip()
-            # Persist notes to INI
             for i, svr in enumerate(state.svr_list, start=1):
                 write_ini("Servers", f"Note{i}", state.svr_notes.get(svr, ""))
-            # Refresh combo to show updated notes
             self.refresh_server_combo()
             self.server_combo.set(self._svr_display_for(num))
             try:

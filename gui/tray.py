@@ -9,7 +9,6 @@ except ImportError:
 
 
 class TrayManager:
-    """Manage system tray icon and notifications."""
 
     def __init__(self, on_quit=None, on_show=None):
         self._icon = None
@@ -18,11 +17,9 @@ class TrayManager:
         self._thread = None
 
     def start(self):
-        """Start the tray icon in a background thread."""
         if not PYSTRAY_AVAILABLE:
             return
 
-        # Create a simple red/black icon
         img = Image.new("RGB", (64, 64), "#000000")
         draw = ImageDraw.Draw(img)
         draw.rectangle([8, 8, 56, 56], fill="#FF4444")
@@ -38,12 +35,10 @@ class TrayManager:
         self._thread.start()
 
     def stop(self):
-        """Stop the tray icon."""
         if self._icon:
             self._icon.stop()
 
     def notify(self, title: str, message: str):
-        """Show a balloon notification."""
         if self._icon:
             self._icon.notify(message, title)
 

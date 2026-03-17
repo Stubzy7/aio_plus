@@ -8,7 +8,6 @@ WS_EX_TOOLWINDOW = 0x00000080
 _user32 = ctypes.windll.user32
 
 def set_no_activate(hwnd_hex_str: str):
-    """Make a window non-activatable (for tooltips)."""
     try:
         hwnd = int(hwnd_hex_str, 16)
         style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
@@ -17,7 +16,6 @@ def set_no_activate(hwnd_hex_str: str):
         pass
 
 def flash_activate(hwnd: int) -> int:
-    """Activate hwnd, return the previous foreground window."""
     import time
     prev = _user32.GetForegroundWindow()
     if prev != hwnd:
@@ -36,7 +34,6 @@ def flash_activate(hwnd: int) -> int:
     return prev
 
 def flash_restore(prev_hwnd: int, game_hwnd: int):
-    """Restore the previous foreground window after input."""
     import time
     if prev_hwnd and prev_hwnd != game_hwnd:
         time.sleep(0.02)

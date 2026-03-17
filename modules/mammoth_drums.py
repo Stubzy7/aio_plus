@@ -11,10 +11,6 @@ TIMER_NAME = "mammoth_drum_tick"
 DRUM_INTERVAL_MS = 1840
 
 
-# ---------------------------------------------------------------------------
-#  Tooltip helper
-# ---------------------------------------------------------------------------
-
 def _tooltip(text: str | None = None):
     try:
         from gui.tooltip import show_tooltip, hide_tooltip
@@ -28,7 +24,6 @@ def _tooltip(text: str | None = None):
 
 
 def _restore_tooltip():
-    """Attempt to restore the OB character tooltip if one was active."""
     try:
         from modules.ob_upload import ob_char_restore_tooltip
         ob_char_restore_tooltip()
@@ -36,12 +31,7 @@ def _restore_tooltip():
         pass
 
 
-# ---------------------------------------------------------------------------
-#  Start / Stop / Toggle
-# ---------------------------------------------------------------------------
-
 def toggle_mammoth_script():
-    """Toggle the mammoth drums on or off (F8 handler)."""
     if state.run_mammoth_script:
         stop_mammoth_script()
     else:
@@ -49,11 +39,6 @@ def toggle_mammoth_script():
 
 
 def start_mammoth_script():
-    """Start the mammoth drum automation.
-
-    Activates the ARK window, fires an initial click, then starts a
-    recurring 1840 ms timer.
-    """
     state.run_mammoth_script = True
     _tooltip(" BG Mammoth Drums RUNNING\nF8 = Stop")
 
@@ -71,7 +56,6 @@ def start_mammoth_script():
 
 
 def stop_mammoth_script():
-    """Stop the mammoth drum automation and clear the tooltip."""
     state.run_mammoth_script = False
     timers.stop_timer(TIMER_NAME)
     _tooltip(None)
@@ -86,11 +70,6 @@ def stop_mammoth_script():
 
 
 def mammoth_drum_tick():
-    """Timer callback — send a click to the ARK window.
-
-    If the mammoth script has been stopped externally or the ARK window
-    no longer exists, stops itself cleanly.
-    """
     if not state.run_mammoth_script:
         stop_mammoth_script()
         return

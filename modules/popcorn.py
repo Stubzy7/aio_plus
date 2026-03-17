@@ -16,7 +16,6 @@ log = logging.getLogger(__name__)
 
 
 def _pc_log(msg: str):
-    """Append a timestamped entry to the popcorn log (visible in F11 debug)."""
     ts = time.strftime("%H:%M:%S")
     state.pc_log_entries.append(f"{ts} {msg}")
     if len(state.pc_log_entries) > 50:
@@ -24,9 +23,6 @@ def _pc_log(msg: str):
     log.info("Popcorn: %s", msg)
 
 
-# ---------------------------------------------------------------------------
-#  High-resolution timer — request 1 ms tick from the OS
-# ---------------------------------------------------------------------------
 try:
     _sys.begin_timer_period(1)
 except Exception:
@@ -34,7 +30,6 @@ except Exception:
 
 
 def precise_sleep(ms: float):
-    """Sleep for *ms* milliseconds with spin-wait tail for sub-ms accuracy."""
     if ms <= 0:
         return
     target = time.perf_counter() + ms / 1000.0
@@ -44,16 +39,7 @@ def precise_sleep(ms: float):
         pass
 
 
-# ---------------------------------------------------------------------------
-#  Inventory detection
-# ---------------------------------------------------------------------------
-
 def pc_wait_for_inventory(max_ms: int = 5000) -> bool:
-    """Wait until the inventory screen is detected.
-
-    Checks for a white pixel at ``state.pc_inv_detect_x/y``.
-    Polls NFSearchTol for 0xFFFFFF tol=10.
-    """
     x = int(state.pc_inv_detect_x)
     y = int(state.pc_inv_detect_y)
     start = time.perf_counter()
@@ -75,18 +61,8 @@ def pc_wait_for_inventory(max_ms: int = 5000) -> bool:
         time.sleep(0.016)
 
 
-# ---------------------------------------------------------------------------
-#  6x6 grid dropper
-# ---------------------------------------------------------------------------
-
 def pc_popcorn_grid(skip_first: bool = False,
                     is_final_cycle: bool = True) -> str:
-    """Drop items in every slot of the configured grid.
-
-    Moves the cursor to each slot and presses the drop key.
-
-    Returns ``"done"`` on full completion, ``"early"`` if interrupted.
-    """
     start_x = int(state.pc_start_slot_x)
     start_y = int(state.pc_start_slot_y)
     slot_w = int(state.pc_slot_w)
@@ -127,7 +103,6 @@ def pc_popcorn_grid(skip_first: bool = False,
 
             set_cursor_pos(int(x), int(y))
 
-            # Extra hover delay on the top row during the final cycle
             # Read live from state so Z speed changes apply mid-run
             if is_final_cycle and row == 0:
                 precise_sleep(state.pc_hover_delay)
@@ -143,7 +118,6 @@ def pc_popcorn_grid(skip_first: bool = False,
 
 
 def pc_popcorn_top_row():
-    """Drop items in the top row only (cleanup pass after storage=0)."""
     start_x = int(state.pc_start_slot_x)
     start_y = int(state.pc_start_slot_y)
     slot_w = int(state.pc_slot_w)
@@ -159,16 +133,7 @@ def pc_popcorn_top_row():
     log.debug("TopRow: %d drops fired", cols)
 
 
-# ---------------------------------------------------------------------------
-#  Search filter
-# ---------------------------------------------------------------------------
-
 def pc_apply_filter(filter_text: str):
-    """Click the search bar, clipboard-paste the filter text, click first slot.
-
-    Uses ControlClick (background click) for search bar and slot clicks,
-    SendInput for keyboard.
-    """
     if not filter_text:
         return
 
@@ -200,16 +165,11 @@ def pc_apply_filter(filter_text: str):
 
 
 def _pc_set_clipboard(text: str):
-    """Set Win32 clipboard to text — delegates to shared clipboard utility."""
     from util.clipboard import set_clipboard_text
     set_clipboard_text(text)
 
 
 def pc_clear_filter():
-    """Clear the search bar.
-
-    Uses ControlClick (background click) to clear the search bar.
-    """
     from input.window import control_click, win_activate
     hwnd = win_exist(state.ark_window)
     if not hwnd:
@@ -234,12 +194,7 @@ def pc_clear_filter():
     _pc_log("ClearFilter: done")
 
 
-# ---------------------------------------------------------------------------
-#  Transfer All (for forge transfer mode)
-# ---------------------------------------------------------------------------
-
 def pc_transfer_all():
-    """Click the Transfer All button via ControlClick."""
     from input.window import control_click
     hwnd = win_exist(state.ark_window)
     if not hwnd:
@@ -249,18 +204,7 @@ def pc_transfer_all():
     time.sleep(0.100)
 
 
-# ---------------------------------------------------------------------------
-#  OCR-based storage count check
-# ---------------------------------------------------------------------------
-
 def pc_check_storage_empty() -> int:
-    """Read the storage item count via OCR.
-
-    Returns:
-        0      if the storage is empty.
-        >0     the current item count.
-        -1     if OCR failed to produce a valid reading.
-    """
     sx = int(state.pc_storage_scan_x)
     sy = int(state.pc_storage_scan_y)
     sw = int(state.pc_storage_scan_w)
@@ -278,16 +222,14 @@ def pc_check_storage_empty() -> int:
             cleaned = re.sub(r"s(?=\d)", "5", cleaned)
             cleaned = re.sub(r"\d+\.\d+", "", cleaned)
 
-            # Try "N / M" pattern
             m = re.search(r"(-?\d+)\s*/\s*(\d+)", cleaned)
             if m:
                 val = int(m.group(1))
                 max_val = int(m.group(2))
                 if val < 0:
                     val = 0
-                # Suspicious zero from multi-digit string (e.g. "-200" → 0) — retry.
-                # StrLen > 1 catches negatives/loading text.
-                # Single-char "o" → "0" is accepted (could be genuine empty).
+                # Suspicious zero from multi-digit string (e.g. "-200" -> 0) — retry.
+                # Single-char "o" -> "0" is accepted (could be genuine empty).
                 if val == 0 and len(m.group(1)) > 1:
                     _pc_log(f"OCR: suspicious 0 from [{m.group(1)}] raw=[{raw_text.strip()}] — retrying")
                     time.sleep(0.080)
@@ -296,14 +238,12 @@ def pc_check_storage_empty() -> int:
                     _pc_log(f"OCR: {val}/{max_val} raw=[{raw_text.strip()}]")
                     return val
 
-            # Bag pattern: "N / ---"
             bag_m = re.search(r"(\d+)\s*/\s*[-\u2014\u2013]+", cleaned)
             if bag_m:
                 val = max(0, int(bag_m.group(1)))
                 _pc_log(f"OCR: {val}/-- (bag) raw=[{raw_text.strip()}]")
                 return val
 
-            # Bare slash after retries — OCR failed to read the count
             if not state.pc_is_bag and attempts >= 2:
                 if re.match(r"^\s*/", cleaned):
                     _pc_log(f"OCR: bare slash -> -1 (read fail) raw=[{raw_text.strip()}]")
@@ -320,12 +260,7 @@ def pc_check_storage_empty() -> int:
     return -1
 
 
-# ---------------------------------------------------------------------------
-#  Speed control
-# ---------------------------------------------------------------------------
-
 def pc_apply_speed():
-    """Apply the current speed mode settings to drop/cycle/hover delays."""
     mode = state.pc_speed_mode
     speeds = state.pc_speed_map.get(mode, [4, 15, 20])
     state.pc_drop_sleep = speeds[0]
@@ -336,18 +271,12 @@ def pc_apply_speed():
 
 
 def pc_cycle_speed():
-    """Cycle through speed modes: 0 (Safe) -> 1 (Fast) -> 2 (Very Fast) -> 0."""
     state.pc_speed_mode = (state.pc_speed_mode + 1) % 3
     pc_apply_speed()
     log.debug("Speed cycled to %s", state.pc_speed_names.get(state.pc_speed_mode, "?"))
 
 
-# ---------------------------------------------------------------------------
-#  Tooltip / status builder
-# ---------------------------------------------------------------------------
-
 def pc_build_tooltip() -> str:
-    """Build the tooltip text for the current Popcorn state."""
     if state.pc_mode == 0:
         return ""
 
@@ -394,20 +323,12 @@ def pc_build_tooltip() -> str:
     return f"{line1}\n{line2}\n{line3}"
 
 
-# ---------------------------------------------------------------------------
-#  Internal: one drop-loop pass with stall detection
-# ---------------------------------------------------------------------------
-
 def _run_drop_loop(label: str) -> tuple[int, bool]:
-    """Execute repeated grid drops until storage is empty or stalled.
-
-    Returns ``(pass_count, stalled)``.
-    """
     # Wait for inventory items to load — OCR shows -x/x or 0/x while
     # loading, then updates to the actual count once items render.
     _wait_start = time.perf_counter()
     _stable = 0
-    for _poll in range(60):  # up to ~3s
+    for _poll in range(60):
         if state.pc_early_exit or state.pc_f1_abort:
             break
         chk = pc_check_storage_empty()
@@ -481,17 +402,7 @@ def _run_drop_loop(label: str) -> tuple[int, bool]:
     return pass_num, stalled
 
 
-# ---------------------------------------------------------------------------
-#  Unified run — main loop
-# ---------------------------------------------------------------------------
-
 def pc_unified_run():
-    """Execute the full popcorn sequence.
-
-    Builds a filter list from the active preset flags, then for each filter
-    applies it and runs the drop loop.  Handles multi-step (multiple filters),
-    single-filter, and fallback modes.
-    """
     filters: list[str] = []
     labels: list[str] = []
     is_clear: list[bool] = []
@@ -538,7 +449,6 @@ def pc_unified_run():
     state.pc_f1_abort = False
 
     if len(filters) > 1:
-        # Multi-step: no OCR, grid-drop until Q advances to next filter
         _pc_log(f"UnifiedRun: START multi-step  count={len(filters)}  "
                 f"skipFirst={state.pc_forge_skip_first}  "
                 f"xferAll={state.pc_forge_transfer_all}")
@@ -648,16 +558,7 @@ def pc_unified_run():
     _pc_log("UnifiedRun: DONE")
 
 
-# ---------------------------------------------------------------------------
-#  F-key handler
-# ---------------------------------------------------------------------------
-
 def pc_f_pressed():
-    """Main F-key handler for Popcorn.
-
-    Waits for inventory to open, checks keys are configured,
-    hides GUI, registers speed hotkeys, then runs PcRunCurrentMode.
-    """
     _pc_log(f"FPressed: mode={state.pc_mode}  running={state.pc_running}")
 
     if not win_exist(state.ark_window):
@@ -698,10 +599,6 @@ def pc_f_pressed():
 
 
 def _pc_run_current_mode():
-    """Execute the popcorn run sequence.
-
-    Activates ARK, shows tooltip, runs unified drop, then cleans up.
-    """
     state.pc_f1_abort = False
     state.pc_early_exit = False
     _pc_log(f"RunCurrentMode: mode={state.pc_mode}")
@@ -748,27 +645,17 @@ def _pc_run_current_mode():
 
 
 def pc_f_pressed_async():
-    """Launch pc_f_pressed on a background thread."""
     t = threading.Thread(target=pc_f_pressed, daemon=True,
                          name="popcorn-exec")
     t.start()
 
 
-# ---------------------------------------------------------------------------
-#  Stop
-# ---------------------------------------------------------------------------
-
 def stop_popcorn():
-    """Signal all popcorn loops to stop and unregister speed hotkeys."""
     state.pc_early_exit = True
     state.pc_f1_abort = True
     pc_register_speed_hotkeys(False)
     log.info("Popcorn: stop requested")
 
-
-# ---------------------------------------------------------------------------
-#  F10 Quick Popcorn cycle
-# ---------------------------------------------------------------------------
 
 _F10_NAMES = {1: "All", 2: "+Transfer"}
 
@@ -782,13 +669,10 @@ def _f10_update_status(text: str):
 
 
 def _pc_tooltip(text: str | None = None):
-    """Show or hide the popcorn tooltip.
-
-    Guards against a race where the tooltip show is queued via root.after()
-    but F1's _stop_flags() runs hide_all() before the queued show executes.
-    Uses a generation counter: _stop_flags increments pc_tooltip_gen, and the
-    queued callback checks if gen still matches — if not, F1 cancelled it.
-    """
+    # Guards against a race where the tooltip show is queued via root.after()
+    # but F1's _stop_flags() runs hide_all() before the queued show executes.
+    # Uses a generation counter: _stop_flags increments pc_tooltip_gen, and the
+    # queued callback checks if gen still matches — if not, F1 cancelled it.
     try:
         from gui.tooltip import show_tooltip, hide_tooltip
         if text:
@@ -808,10 +692,6 @@ def _pc_tooltip(text: str | None = None):
 
 
 def pc_f10_cycle():
-    """Cycle F10 Quick Popcorn:  off -> All -> +Transfer -> off.
-
-    Cycles through F10 quick-popcorn states.
-    """
     if state.pc_f10_step == 0:
         from core.config import read_ini
         saved_drop = read_ini("Popcorn", "DropKey", "")
@@ -885,15 +765,7 @@ def pc_f10_cycle():
     _pc_log(f"F10 cycle: step={state.pc_f10_step}")
 
 
-# ---------------------------------------------------------------------------
-#  Speed hotkeys — register/unregister Z/[/] during popcorn operation
-# ---------------------------------------------------------------------------
-
 def pc_register_speed_hotkeys(enable: bool = True):
-    """Register or unregister Z/[/] speed hotkeys.
-
-    Only registers [/] if autoclicker is not already using them.
-    """
     try:
         hk = state._hotkey_mgr
     except AttributeError:
@@ -924,10 +796,6 @@ def pc_register_speed_hotkeys(enable: bool = True):
 
 
 def pc_hotkey_speed():
-    """Z key handler — cycle through speed presets.
-
-    Cycles speed preset, saves to INI, updates tooltip.
-    """
     pc_cycle_speed()
     pc_save_speed_to_ini()
     pc_update_f10_speed()
@@ -936,24 +804,14 @@ def pc_hotkey_speed():
 
 
 def pc_hotkey_bracket_left():
-    """[ key handler — decrease drop delay."""
     pc_adjust_drop_sleep(-1)
 
 
 def pc_hotkey_bracket_right():
-    """] key handler — increase drop delay."""
     pc_adjust_drop_sleep(1)
 
 
-# ---------------------------------------------------------------------------
-#  Save speed to INI — saves mode AND individual delay values
-# ---------------------------------------------------------------------------
-
 def pc_save_speed_to_ini():
-    """Save speed mode and all individual delay values to INI.
-
-    Saves SpeedMode, DropSleep, CycleSleep, and HoverDelay.
-    """
     from core.config import write_ini
     write_ini("Popcorn", "SpeedMode", str(state.pc_speed_mode))
     write_ini("Popcorn", "DropSleep", str(state.pc_drop_sleep))
@@ -961,15 +819,7 @@ def pc_save_speed_to_ini():
     write_ini("Popcorn", "HoverDelay", str(state.pc_hover_delay))
 
 
-# ---------------------------------------------------------------------------
-#  Scan area load — reads base coords from INI and scales to resolution
-# ---------------------------------------------------------------------------
-
 def pc_load_scan_area():
-    """Load OCR scan area from INI with resolution scaling.
-
-    Reads base (unscaled) coordinates and multiplies by resolution multiplier.
-    """
     from core.config import read_ini
     wm = state.width_multiplier or 1
     hm = state.height_multiplier or 1
@@ -988,15 +838,7 @@ def pc_load_scan_area():
                 pass
 
 
-# ---------------------------------------------------------------------------
-#  Status / UI update helpers
-# ---------------------------------------------------------------------------
-
 def pc_set_status(msg: str):
-    """Update the status text on the Popcorn tab.
-
-    Thread-safe GUI update via root.after().
-    """
     try:
         tab = getattr(state, "_tab_popcorn", None)
         if tab and hasattr(tab, "status_txt"):
@@ -1008,10 +850,6 @@ def pc_set_status(msg: str):
 
 
 def pc_update_f10_speed():
-    """Update the F10 speed label text and color on the GUI.
-
-    Updates the F10 speed label text and color on the GUI.
-    """
     try:
         tab = getattr(state, "_tab_popcorn", None)
         if not tab:
@@ -1040,10 +878,6 @@ def pc_update_f10_speed():
 
 
 def pc_show_armed_tooltip():
-    """Show the appropriate tooltip based on current popcorn state.
-
-    Shows F10 tooltip or regular armed tooltip depending on mode.
-    """
     if state.pc_f10_step > 0:
         _pc_tooltip(pc_build_f10_tooltip())
     elif state.pc_mode > 0:
@@ -1053,7 +887,6 @@ def pc_show_armed_tooltip():
 
 
 def pc_build_f10_tooltip() -> str:
-    """Build the F10 mode tooltip."""
     f10_names = {1: "All (no filter)", 2: "Transfer"}
     name = f10_names.get(state.pc_f10_step, "")
     if not name:
@@ -1066,10 +899,6 @@ def pc_build_f10_tooltip() -> str:
 
 
 def pc_adjust_drop_sleep(direction: int):
-    """Adjust the drop sleep — [ to slow down, ] to speed up.
-
-    Step size of 2ms, minimum clamped to 1ms.
-    """
     step = 2
     state.pc_drop_sleep = max(1, state.pc_drop_sleep + direction * step)
     log.debug("Drop sleep adjusted to %d", state.pc_drop_sleep)

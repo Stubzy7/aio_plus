@@ -4,11 +4,6 @@ import tkinter as tk
 
 def show_rect_overlay(x: int, y: int, w: int, h: int,
                       color: str = "red", border: int = 1) -> list[tk.Toplevel]:
-    """Show a thin border rectangle overlay at screen coordinates.
-
-    Returns a list of 4 Toplevel windows (top, bottom, left, right edges)
-    that can be passed to hide_rect_overlay() to remove them.
-    """
     from core.state import state
     root = getattr(state, "root", None)
     if root is None:
@@ -34,7 +29,6 @@ def show_rect_overlay(x: int, y: int, w: int, h: int,
 
 
 def hide_rect_overlay(edges: list) -> None:
-    """Destroy overlay edge windows."""
     if not edges:
         return
     for edge in edges:
@@ -44,5 +38,4 @@ def hide_rect_overlay(edges: list) -> None:
             pass
 
 
-# Alias used by several modules
 destroy_overlay = hide_rect_overlay

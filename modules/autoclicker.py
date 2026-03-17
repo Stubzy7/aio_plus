@@ -10,12 +10,7 @@ log = logging.getLogger(__name__)
 TIMER_NAME = "autoclick_loop"
 
 
-# ---------------------------------------------------------------------------
-#  Tooltip helper (thin shim — real implementation lives in the GUI layer)
-# ---------------------------------------------------------------------------
-
 def _tooltip(text: str | None = None):
-    """Show/hide a tooltip. Imported lazily to avoid circular deps."""
     try:
         from gui.tooltip import show_tooltip, hide_tooltip
         if text:
@@ -28,30 +23,13 @@ def _tooltip(text: str | None = None):
 
 
 def _update_tooltip():
-    """Display the current autoclick status tooltip."""
     _tooltip(
         f" AUTOCLICK ON  (Interval: {state.autoclick_interval}ms)\n"
         f"[ = Slower   ] = Faster\nF9 = Stop"
     )
 
 
-# ---------------------------------------------------------------------------
-#  Core functions
-# ---------------------------------------------------------------------------
-
 def toggle_autoclicker():
-    """Toggle the autoclicker on/off (F9 handler).
-
-    When starting:
-      - Verifies ARK window exists
-      - Hides the GUI, activates ARK
-      - Starts the autoclick timer at ``state.autoclick_interval``
-      - Registers [ / ] hotkeys for speed adjustment
-    When stopping:
-      - Stops the timer
-      - Unregisters speed hotkeys
-      - Shows a brief "off" tooltip
-    """
     state.last_debug_context = "autoclick"
     state.autoclicking = not state.autoclicking
 
@@ -62,7 +40,6 @@ def toggle_autoclicker():
             state.autoclicking = False
             return
 
-        # Stop popcorn if running
         if state.pc_running:
             state.pc_early_exit = True
             state.pc_f10_step = 0
@@ -77,7 +54,6 @@ def toggle_autoclicker():
 
         timers.set_timer(TIMER_NAME, autoclick_loop, state.autoclick_interval)
 
-        # Register speed-adjust hotkeys
         try:
             from core.hotkeys import HotkeyManager
             hk: HotkeyManager = state._hotkey_mgr  # type: ignore[attr-defined]
@@ -112,11 +88,6 @@ def toggle_autoclicker():
 
 
 def autoclick_loop():
-    """Timer callback — sends a left-click to the ARK window.
-
-    If the window disappears or autoclicking is toggled off externally,
-    the callback silently returns.
-    """
     if not state.autoclicking:
         return
     hwnd = win_exist(state.ark_window)
@@ -126,11 +97,9 @@ def autoclick_loop():
 
 
 def autoclick_slower():
-    """Increase the click interval by one step ([ key handler)."""
     state.autoclick_interval += state.autoclick_interval_step
 
     if state.autoclicking:
-        # Restart timer at new interval
         timers.stop_timer(TIMER_NAME)
         timers.set_timer(TIMER_NAME, autoclick_loop, state.autoclick_interval)
         _update_tooltip()
@@ -139,10 +108,6 @@ def autoclick_slower():
 
 
 def autoclick_faster():
-    """Decrease the click interval by one step (] key handler).
-
-    Will not go below ``state.autoclick_min_interval``.
-    """
     state.autoclick_interval = max(
         state.autoclick_min_interval,
         state.autoclick_interval - state.autoclick_interval_step,

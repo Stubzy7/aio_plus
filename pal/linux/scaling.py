@@ -1,14 +1,7 @@
-"""Linux screen resolution and DPI.
-
-Drop-in replacement for platform.win32.scaling — same public API.
-"""
-
 import subprocess
 
 
 def get_screen_size() -> tuple[int, int]:
-    """Get primary screen resolution as (width, height)."""
-    # Try xdotool first
     try:
         result = subprocess.run(
             ["xdotool", "getdisplaygeometry"],
@@ -21,7 +14,6 @@ def get_screen_size() -> tuple[int, int]:
     except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
         pass
 
-    # Fallback to tkinter
     try:
         import tkinter as tk
         root = tk.Tk()
@@ -37,5 +29,4 @@ def get_screen_size() -> tuple[int, int]:
 
 
 def set_dpi_aware():
-    """Set DPI awareness. No-op on Linux."""
     pass

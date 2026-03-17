@@ -25,19 +25,11 @@ def _tooltip(text: str | None = None):
         if text:
             log.info("tooltip: %s", text)
 
-# ---------------------------------------------------------------------------
-# Module-level thread reference
-# ---------------------------------------------------------------------------
 _sheep_thread: threading.Thread | None = None
 _auto_lvl_thread: threading.Thread | None = None
 
 
-# ---------------------------------------------------------------------------
-# Hotkey registration
-# ---------------------------------------------------------------------------
-
 def sheep_register_hotkeys(hk_manager):
-    """Register sheep toggle / overcap / auto-level hotkeys."""
     key_toggle = state.sheep_toggle_key
     key_overcap = state.sheep_overcap_key
     key_auto_lvl = state.sheep_auto_lvl_key
@@ -51,7 +43,6 @@ def sheep_register_hotkeys(hk_manager):
 
 
 def sheep_unregister_hotkeys(hk_manager):
-    """Unregister sheep hotkeys (only our callbacks, not all bindings for the key)."""
     if state.sheep_toggle_key:
         hk_manager.unregister(state.sheep_toggle_key, _hotkey_toggle)
     if state.sheep_overcap_key:
@@ -60,12 +51,7 @@ def sheep_unregister_hotkeys(hk_manager):
         hk_manager.unregister(state.sheep_auto_lvl_key, _hotkey_auto_lvl)
 
 
-# ---------------------------------------------------------------------------
-# Hotkey callbacks (guard: only act when sheep tab active + ARK focused)
-# ---------------------------------------------------------------------------
-
 def _is_ark_active() -> bool:
-    """Return True if the ARK window is the foreground window."""
     hwnd = win_exist(state.ark_window)
     if not hwnd:
         return False
@@ -94,21 +80,14 @@ def _hotkey_auto_lvl():
     sheep_toggle_auto_lvl()
 
 
-# ---------------------------------------------------------------------------
-# Toggle / stop helpers
-# ---------------------------------------------------------------------------
-
 def sheep_toggle_script():
-    """Start or pause the sheep harvesting loop."""
     if state.sheep_running:
         sheep_stop_script()
     else:
         if not state.sheep_inventory_key:
-            # Check INI fallback (shared with popcorn)
             from core.config import read_ini
             saved_inv = read_ini("Popcorn", "InvKey", "")
             if not saved_inv:
-                # Show the Set Keys prompt (same dialog as popcorn)
                 log.warning("Sheep: inventory key not set — showing prompt")
                 try:
                     tab_pc = getattr(state, "_tab_popcorn", None)
@@ -138,7 +117,6 @@ def sheep_toggle_script():
 
 
 def sheep_stop_script():
-    """Stop the sheep loop cleanly, do a final drop, and restore GUI."""
     state.sheep_running = False
     mouse_up("left")
     time.sleep(0.2)
@@ -155,19 +133,13 @@ def sheep_stop_script():
 
 
 def sheep_toggle_overcap():
-    """Toggle overcap mode (weight-encumbrance 1-2-3 keys)."""
     state.overcapping_toggle = not state.overcapping_toggle
     status = "ON" if state.overcapping_toggle else "OFF"
     _tooltip(f" Overcapping: {status}")
     log.info("Overcapping: %s", status)
 
 
-# ---------------------------------------------------------------------------
-# Auto-level toggle / stop
-# ---------------------------------------------------------------------------
-
 def sheep_toggle_auto_lvl():
-    """Toggle the sheep auto-level overlay mode."""
     state.sheep_auto_lvl_active = not state.sheep_auto_lvl_active
 
     if state.sheep_auto_lvl_active:
@@ -179,7 +151,6 @@ def sheep_toggle_auto_lvl():
         if hwnd:
             win_activate(hwnd)
             time.sleep(0.1)
-        # Only register a separate action key if it differs from the toggle key
         if state.sheep_level_action_key != state.sheep_auto_lvl_key:
             try:
                 hk = state._hotkey_mgr
@@ -213,7 +184,6 @@ def sheep_toggle_auto_lvl():
 
 
 def sheep_stop_auto_lvl():
-    """Force-stop auto-level mode."""
     if state.sheep_level_action_key != state.sheep_auto_lvl_key:
         try:
             hk = state._hotkey_mgr
@@ -233,12 +203,7 @@ def sheep_stop_auto_lvl():
     log.info("Sheep Auto LvL stopped")
 
 
-# ---------------------------------------------------------------------------
-# Main loop
-# ---------------------------------------------------------------------------
-
 def _launch_sheep_thread():
-    """Spawn a background thread for the main sheep loop."""
     global _sheep_thread
     if _sheep_thread is not None and _sheep_thread.is_alive():
         return
@@ -248,12 +213,6 @@ def _launch_sheep_thread():
 
 
 def sheep_start_loop():
-    """Main sheep harvesting loop.
-
-    Holds left-click continuously.  When the weight-indicator pixel goes
-    black (inventory full), release click, open inventory, search, drop all,
-    then wait until the indicator clears before resuming.
-    """
     hwnd = win_exist(state.ark_window)
     if hwnd:
         win_activate(hwnd)
@@ -299,21 +258,11 @@ def sheep_start_loop():
 
         time.sleep(0.05)
 
-    # Clean exit
     mouse_up("left")
 
 
-# ---------------------------------------------------------------------------
-# Inventory helpers
-# ---------------------------------------------------------------------------
-
 def sheep_wait_for_inventory(is_final_drop: bool = False,
                              max_iterations: int = 100) -> bool:
-    """Wait until the inventory screen is detected via a bright pixel.
-
-    Checks for bright pixel (all RGB channels > 200).
-    Returns True if inventory opened within the timeout, False otherwise.
-    """
     for i in range(max_iterations):
         if not state.sheep_running and not is_final_drop:
             return False
@@ -330,14 +279,6 @@ def sheep_wait_for_inventory(is_final_drop: bool = False,
 
 
 def sheep_drop_all(is_final_drop: bool = False):
-    """Open inventory, search for items, drop all, close inventory.
-
-    Parameters
-    ----------
-    is_final_drop : bool
-        When True the function runs even if sheep_running is False (used
-        during the stop sequence to empty the last batch of items).
-    """
     if not state.sheep_running and not is_final_drop:
         return
 
@@ -373,27 +314,16 @@ def sheep_drop_all(is_final_drop: bool = False):
 
 
 def _sheep_click_drop_all():
-    """Move to the Drop All button and click."""
     mouse_move(state.drop_all_x, state.drop_all_y)
     click()
 
 
 def _sheep_click_inventory_search():
-    """Move to the inventory search bar and click."""
     mouse_move(state.invy_search_x, state.invy_search_y)
     click()
 
 
-# ---------------------------------------------------------------------------
-# Sheep auto-level action
-# ---------------------------------------------------------------------------
-
 def sheep_do_auto_level():
-    """Auto-level: wait for the level-up screen, then click the stat button 70 times.
-
-    This is triggered by the level-action hotkey while auto-level mode is active.
-    Called either directly from a hotkey or via sheep_auto_lvl_f_pressed.
-    """
     if not state.sheep_auto_lvl_active or not _is_ark_active():
         send("{" + state.sheep_level_action_key + "}")
         return
@@ -411,7 +341,6 @@ def sheep_do_auto_level():
             break
         time.sleep(0.05)
     else:
-        # Timed out — no level-up screen detected
         return
 
     mouse_move(state.sheep_lvl_click_x, state.sheep_lvl_click_y)
@@ -421,22 +350,13 @@ def sheep_do_auto_level():
         control_send(hwnd, "{Esc}")
 
 
-# ---------------------------------------------------------------------------
-# Floating GUIs (always-on-top status overlays)
-# ---------------------------------------------------------------------------
-
 def sheep_show_auto_lvl_gui():
-    """Show the always-on-top Auto LvL floating GUI.
-
-    Creates a small frameless Toplevel at left screen edge.
-    """
     root = state.root
     if root is None:
         return
 
     def _build():
         import tkinter as tk
-        # Destroy previous if exists
         if state.sheep_auto_lvl_gui is not None:
             try:
                 state.sheep_auto_lvl_gui.destroy()
@@ -473,10 +393,6 @@ def sheep_show_auto_lvl_gui():
 
 
 def sheep_hide_auto_lvl_gui():
-    """Destroy the Auto LvL floating GUI.
-
-    Destroys the floating Toplevel window.
-    """
     root = state.root
 
     def _destroy():
@@ -494,10 +410,6 @@ def sheep_hide_auto_lvl_gui():
 
 
 def sheep_show_status_gui():
-    """Show the always-on-top Sheep Running status GUI.
-
-    Creates a small frameless Toplevel showing sheep status.
-    """
     root = state.root
     if root is None:
         return
@@ -538,10 +450,6 @@ def sheep_show_status_gui():
 
 
 def sheep_hide_status_gui():
-    """Destroy the Sheep Running status GUI.
-
-    Destroys the floating Toplevel window.
-    """
     root = state.root
 
     def _destroy():
@@ -558,16 +466,7 @@ def sheep_hide_status_gui():
         _destroy()
 
 
-# ---------------------------------------------------------------------------
-# Sheep auto-level action
-# ---------------------------------------------------------------------------
-
 def sheep_auto_lvl_f_pressed():
-    """Called from the F handler while sheep auto-level is armed.
-
-    Sends F to ARK (opens dino inventory), waits for the level-up screen,
-    clicks the stat button 70 times, then closes with Escape.
-    """
     if not state.sheep_auto_lvl_active or not _is_ark_active():
         return
 

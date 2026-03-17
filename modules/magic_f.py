@@ -23,9 +23,6 @@ def _show_tooltip(text: str | None = None):
         pass
 
 
-# ---------------------------------------------------------------------------
-#  Item preset definitions: (label, filter_text)
-# ---------------------------------------------------------------------------
 GIVE_PRESETS = [
     ("Beer",     "Beer"),
     ("Berry",    "berry"),
@@ -53,19 +50,10 @@ GIVE_PRESETS = [
     ("Wood",     "wood"),
 ]
 
-TAKE_PRESETS = list(GIVE_PRESETS)  # same label/filter pairs
+TAKE_PRESETS = list(GIVE_PRESETS)
 
-
-# ---------------------------------------------------------------------------
-#  Core helpers
-# ---------------------------------------------------------------------------
 
 def _wait_for_their_inventory(timeout_ms: int = 6000) -> bool:
-    """Wait until the remote inventory panel is detected (white pixel near
-    the remote inventory header area).
-
-    Checks pixel at approximately (1495*wm, 226*hm) for 0xFFFFFF.
-    """
     x = int(1495 * state.width_multiplier)
     y = int(226 * state.height_multiplier)
     deadline = time.perf_counter() + timeout_ms / 1000.0
@@ -78,16 +66,10 @@ def _wait_for_their_inventory(timeout_ms: int = 6000) -> bool:
 
 
 def _get_ark_hwnd() -> int:
-    """Get the ARK window handle."""
     return win_exist(state.ark_window)
 
 
 def check_take(filter_text: str):
-    """Search the *remote* inventory for *filter_text* and Transfer All to me.
-
-    Uses ControlClick (PostMessage) and VK-based key presses so
-    ARK/Unreal Engine processes the text input.
-    """
     hwnd = _get_ark_hwnd()
     if not hwnd:
         return
@@ -100,11 +82,6 @@ def check_take(filter_text: str):
 
 
 def check_give(filter_text: str):
-    """Search *my* inventory for *filter_text* and Transfer All to other.
-
-    Uses ControlClick (PostMessage) and VK-based key presses so
-    ARK/Unreal Engine processes the text input.
-    """
     hwnd = _get_ark_hwnd()
     if not hwnd:
         return
@@ -117,10 +94,6 @@ def check_give(filter_text: str):
 
 
 def drop_one(filter_text: str):
-    """Search the remote inventory for *filter_text* and drop all.
-
-    Uses their search bar and their Drop All button.
-    """
     hwnd = _get_ark_hwnd()
     if not hwnd:
         return
@@ -133,12 +106,7 @@ def drop_one(filter_text: str):
     time.sleep(0.200)
 
 
-# ---------------------------------------------------------------------------
-#  Tooltip builder
-# ---------------------------------------------------------------------------
-
 def magic_f_build_tooltip() -> str:
-    """Build the tooltip text for the current Magic F state."""
     names = state.magic_f_preset_names
     dirs_ = state.magic_f_preset_dirs
     idx = state.magic_f_preset_idx
@@ -175,15 +143,7 @@ def magic_f_build_tooltip() -> str:
     return f"{line1}\n{items}\nQ = Cycle selected presets  |  Z = Swap  |  F1 = Stop/UI"
 
 
-# ---------------------------------------------------------------------------
-#  Preset cycling (Q key)
-# ---------------------------------------------------------------------------
-
 def magic_f_cycle_preset():
-    """Cycle to the next preset (triggered by Q key).
-
-    Does nothing in refill mode or when only one preset is selected.
-    """
     if not state.run_magic_f_script:
         return
     if state.magic_f_refill_mode:
@@ -196,16 +156,7 @@ def magic_f_cycle_preset():
               names[state.magic_f_preset_idx - 1])
 
 
-# ---------------------------------------------------------------------------
-#  Direction swap (Z key)
-# ---------------------------------------------------------------------------
-
 def magic_f_swap_direction():
-    """Swap every preset between Give and Take (triggered by Z key).
-
-    Does nothing in refill mode.  After swapping, syncs the GUI checkboxes
-    so the visual state matches the new direction.
-    """
     if not state.run_magic_f_script:
         return
     if state.magic_f_refill_mode:
@@ -217,7 +168,6 @@ def magic_f_swap_direction():
             for d in state.magic_f_preset_dirs
         ]
 
-    # Sync GUI checkboxes (swap give ↔ take checked states)
     try:
         tab = getattr(state, "_tab_magicf", None)
         root = state.root
@@ -236,30 +186,17 @@ def magic_f_swap_direction():
     log.debug("Magic F: directions swapped")
 
 
-# ---------------------------------------------------------------------------
-#  Build filter list and arm  (the "Run" button)
-# ---------------------------------------------------------------------------
-
 def run_magic_f(give_checks: list[tuple[bool, str, str]],
                 take_checks: list[tuple[bool, str, str]],
                 custom_give_active: bool = False,
                 custom_give_text: str = "",
                 custom_take_active: bool = False,
                 custom_take_text: str = ""):
-    """Build the preset list from GUI checkbox state and arm Magic F.
-
-    Each element in *give_checks* / *take_checks* is
-    ``(is_checked, label, filter_text)``.
-
-    The function populates ``state.magic_f_preset_names/filters/dirs`` and
-    sets ``state.run_magic_f_script = True``.
-    """
     state.run_magic_f_script = True
     names: list[str] = []
     filters: list[str] = []
     dirs: list[str] = []
 
-    # Build give entries
     give_entries: list[tuple[str, str]] = []
     for checked, label, filt in give_checks:
         if checked:
@@ -271,7 +208,6 @@ def run_magic_f(give_checks: list[tuple[bool, str, str]],
         if ct and ct not in state.mf_give_filter_list:
             give_entries.append((f"Custom [{ct}]", ct))
 
-    # Build take entries
     take_entries: list[tuple[str, str]] = []
     for checked, label, filt in take_checks:
         if checked:
@@ -283,9 +219,7 @@ def run_magic_f(give_checks: list[tuple[bool, str, str]],
         if ct and ct not in state.mf_take_filter_list:
             take_entries.append((f"Custom [{ct}]", ct))
 
-    # Order depends on refill mode
     if state.magic_f_refill_mode:
-        # Take first, then give
         for label, filt in take_entries:
             names.append(label)
             filters.append(filt)
@@ -295,7 +229,6 @@ def run_magic_f(give_checks: list[tuple[bool, str, str]],
             filters.append(filt)
             dirs.append("Give")
     else:
-        # Give first, then take
         for label, filt in give_entries:
             names.append(label)
             filters.append(filt)
@@ -315,19 +248,7 @@ def run_magic_f(give_checks: list[tuple[bool, str, str]],
              state.magic_f_refill_mode)
 
 
-# ---------------------------------------------------------------------------
-#  F-key handler (called when F is pressed in-game with Magic F active)
-# ---------------------------------------------------------------------------
-
 def magic_f_pressed():
-    """Execute the Magic F transfer for the current preset.
-
-    Called from the hotkey system when F is pressed while the game
-    inventory is open and Magic F is armed.
-
-    * In refill mode: iterates ALL presets (take then give) and closes.
-    * In normal mode: executes the single current preset and closes.
-    """
     names = state.magic_f_preset_names
     filters = state.magic_f_preset_filters
     dirs_ = state.magic_f_preset_dirs
@@ -367,19 +288,12 @@ def magic_f_pressed():
 
 
 def magic_f_pressed_async():
-    """Launch magic_f_pressed on a background thread so the hotkey
-    handler returns immediately."""
     t = threading.Thread(target=magic_f_pressed, daemon=True,
                          name="magic-f-exec")
     t.start()
 
 
-# ---------------------------------------------------------------------------
-#  Stop
-# ---------------------------------------------------------------------------
-
 def stop_magic_f():
-    """Disarm Magic F and reset state."""
     state.run_magic_f_script = False
     state.magic_f_preset_idx = 1
     log.info("Magic F stopped")

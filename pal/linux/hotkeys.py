@@ -1,8 +1,3 @@
-"""Linux hotkey manager using pynput.
-
-Drop-in replacement for platform.win32.hotkeys — same public API.
-"""
-
 import subprocess
 import threading
 import time
@@ -12,7 +7,6 @@ from pynput import keyboard as pynput_kb
 from .keyboard import VK_MAP
 
 
-# Reverse map: VK code -> key name (for debug/logging only)
 _VK_REVERSE = {}
 for _name, _vk in VK_MAP.items():
     if _vk not in _VK_REVERSE:
@@ -20,8 +14,6 @@ for _name, _vk in VK_MAP.items():
 
 
 def _pynput_key_to_vk(key) -> int:
-    """Convert a pynput key object to a VK code."""
-    # Special keys
     if isinstance(key, pynput_kb.Key):
         _SPECIAL_MAP = {
             pynput_kb.Key.enter: 0x0D,
@@ -66,7 +58,6 @@ def _pynput_key_to_vk(key) -> int:
         }
         return _SPECIAL_MAP.get(key, 0)
 
-    # Character keys
     if isinstance(key, pynput_kb.KeyCode):
         if key.vk is not None:
             return key.vk
@@ -74,17 +65,15 @@ def _pynput_key_to_vk(key) -> int:
             c = key.char.lower()
             if c in VK_MAP:
                 return VK_MAP[c]
-            # ASCII letter
             o = ord(c)
             if ord('a') <= o <= ord('z'):
-                return o - 32  # VK for A-Z is uppercase ASCII
+                return o - 32
             if ord('0') <= o <= ord('9'):
                 return o
     return 0
 
 
 def _get_active_window_name() -> str:
-    """Get the name of the currently active window."""
     try:
         result = subprocess.run(
             ["xdotool", "getactivewindow", "getwindowname"],
@@ -96,27 +85,19 @@ def _get_active_window_name() -> str:
 
 
 class HotkeyManager:
-    """Global hotkey manager using pynput.
-
-    Mirrors the Windows HotkeyManager interface.
-    """
 
     def __init__(self, root=None):
         self.root = root
-        # _bindings: vk -> list of {callback, suppress, passthrough, enabled}
         self._bindings: dict[int, list[dict]] = {}
         self._listener: pynput_kb.Listener | None = None
         self._lock = threading.Lock()
         self._running = False
-        # Track game-active state
         self._game_active = False
         self._fg_thread = None
-        # Key-repeat suppression
         self._keys_down: set[int] = set()
 
     def register(self, key: str, callback, suppress: bool = True,
                  passthrough: bool = False):
-        """Register a hotkey binding."""
         lower = key.lower().strip("{}")
         vk = VK_MAP.get(lower, 0)
         if not vk:
@@ -135,7 +116,6 @@ class HotkeyManager:
             self._bindings[vk].append(entry)
 
     def unregister(self, key: str, callback=None):
-        """Unregister a hotkey binding."""
         lower = key.lower().strip("{}")
         vk = VK_MAP.get(lower, 0)
         if not vk:
@@ -155,11 +135,9 @@ class HotkeyManager:
                     del self._bindings[vk]
 
     def enable(self, key: str, callback=None):
-        """Enable a hotkey binding."""
         self._set_enabled(key, callback, True)
 
     def disable(self, key: str, callback=None):
-        """Disable a hotkey binding."""
         self._set_enabled(key, callback, False)
 
     def _set_enabled(self, key: str, callback, enabled: bool):
@@ -173,12 +151,10 @@ class HotkeyManager:
                     b["enabled"] = enabled
 
     def start(self):
-        """Start listening for hotkeys."""
         if self._running:
             return
         self._running = True
 
-        # Determine if any bindings need suppression
         needs_suppress = any(
             b["suppress"]
             for bindings in self._bindings.values()
@@ -193,19 +169,16 @@ class HotkeyManager:
         self._listener.daemon = True
         self._listener.start()
 
-        # Start game-active polling in a daemon thread
         self._fg_thread = threading.Thread(target=self._poll_game_active, daemon=True)
         self._fg_thread.start()
 
     def stop(self):
-        """Stop listening for hotkeys."""
         self._running = False
         if self._listener:
             self._listener.stop()
             self._listener = None
 
     def _poll_game_active(self):
-        """Poll whether the game window is active (runs in daemon thread)."""
         import subprocess
         while self._running:
             try:
@@ -220,7 +193,6 @@ class HotkeyManager:
             time.sleep(0.050)
 
     def _on_press(self, key):
-        """Handle key press events from pynput."""
         if not self._game_active:
             return
 
@@ -228,7 +200,6 @@ class HotkeyManager:
         if not vk:
             return
 
-        # Key-repeat suppression: ignore if key is already held down
         if vk in self._keys_down:
             return
         self._keys_down.add(vk)
@@ -239,7 +210,6 @@ class HotkeyManager:
         for b in bindings:
             if not b["enabled"]:
                 continue
-            # Marshall callback to main thread if possible
             if self.root:
                 self.root.after(0, b["callback"])
             else:
@@ -249,7 +219,6 @@ class HotkeyManager:
                     pass
 
     def _on_release(self, key):
-        """Handle key release events from pynput."""
         vk = _pynput_key_to_vk(key)
         if vk:
             self._keys_down.discard(vk)

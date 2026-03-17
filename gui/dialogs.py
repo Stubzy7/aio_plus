@@ -3,24 +3,18 @@ import tkinter as tk
 from gui.theme import BG_DARK, FG_COLOR, FG_ACCENT, FG_WHITE, FONT_DEFAULT, FONT_BOLD
 
 
-# Track open help dialogs by title so clicking ? again destroys the old one
 _open_help_dialogs: dict[str, tk.Toplevel] = {}
 
 
 def show_help_dialog(title: str, text: str, parent: tk.Tk | None = None):
-    """Show a help popup with a 'Got it' button.
-
-    If a help dialog with the same title is already open, destroy it first
-    Clicking ? twice closes the popup (toggle behaviour).
-    """
-    # Destroy existing dialog with same title
+    # Toggle: destroy existing dialog with same title
     existing = _open_help_dialogs.pop(title, None)
     if existing is not None:
         try:
             existing.destroy()
         except tk.TclError:
             pass
-        return  # toggle: second click just closes
+        return
 
     dlg = tk.Toplevel(parent)
     dlg.title(title)
@@ -53,7 +47,6 @@ def show_help_dialog(title: str, text: str, parent: tk.Tk | None = None):
 
     _open_help_dialogs[title] = dlg
 
-    # Center on screen
     dlg.update_idletasks()
     w, h = dlg.winfo_width(), dlg.winfo_height()
     sw, sh = dlg.winfo_screenwidth(), dlg.winfo_screenheight()
@@ -61,12 +54,10 @@ def show_help_dialog(title: str, text: str, parent: tk.Tk | None = None):
 
 
 def show_message(title: str, text: str, parent: tk.Tk | None = None):
-    """Show a simple message dialog."""
     show_help_dialog(title, text, parent)
 
 
 def ask_yes_no(title: str, text: str, parent: tk.Tk | None = None) -> bool:
-    """Show a yes/no dialog. Returns True if Yes clicked."""
     result = [False]
     dlg = tk.Toplevel(parent)
     dlg.title(title)
@@ -106,7 +97,6 @@ def ask_yes_no(title: str, text: str, parent: tk.Tk | None = None) -> bool:
 
 def show_input_dialog(title: str, prompt: str, default: str = "",
                       parent: tk.Tk | None = None) -> str | None:
-    """Show a text input dialog. Returns the entered text or None if cancelled."""
     result = [None]
     dlg = tk.Toplevel(parent)
     dlg.title(title)
@@ -152,17 +142,9 @@ def show_input_dialog(title: str, prompt: str, default: str = "",
 
 
 class SaveDialog:
-    """Reusable save dialog for macros, presets, etc."""
 
     def __init__(self, title: str, fields: list[dict], parent=None,
                  on_save=None):
-        """
-        Args:
-            title: Dialog title.
-            fields: List of dicts with keys: 'label', 'type' ('entry'|'check'),
-                     'default', 'key'.
-            on_save: Callback(values_dict) when Save is clicked.
-        """
         self.on_save = on_save
         self.dlg = tk.Toplevel(parent)
         self.dlg.title(title)

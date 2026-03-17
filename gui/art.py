@@ -3,12 +3,7 @@ import math
 from PIL import Image, ImageDraw, ImageFont
 
 
-# ---------------------------------------------------------------------------
-#  Color helpers
-# ---------------------------------------------------------------------------
-
 def _spiral_color(frac: float) -> tuple[int, int, int]:
-    """Map iteration fraction (0=outer, 1=inner) to an RGB color."""
     if frac < 0.10:   return (0x55, 0x08, 0x08)
     elif frac < 0.20: return (0x77, 0x10, 0x10)
     elif frac < 0.25: return (0x99, 0x18, 0x18)
@@ -22,15 +17,7 @@ def _spiral_color(frac: float) -> tuple[int, int, int]:
     else:             return (0xFF, 0xF0, 0xF0)
 
 
-# ---------------------------------------------------------------------------
-#  ART 1: Delta Spiral
-# ---------------------------------------------------------------------------
-
 def render_delta_spiral() -> Image.Image:
-    """Render the inverted triangle spiral as a Pillow Image.
-
-    Returns a 175x145 bitmap with black background.
-    """
     radius = 85
     steps = 32
     slide = 0.068
@@ -40,7 +27,6 @@ def render_delta_spiral() -> Image.Image:
     cx = 350 - 275  # 75
     cy = 140 - 75   # 65
 
-    # Render at 2x for anti-aliasing
     scale = 2
     img = Image.new("RGB", (bmp_w * scale, bmp_h * scale), (0, 0, 0))
     draw = ImageDraw.Draw(img)
@@ -84,16 +70,11 @@ def render_delta_spiral() -> Image.Image:
         p2x, p2y = n2x, n2y
         p3x, p3y = n3x, n3y
 
-    # Downscale with LANCZOS for anti-aliasing
     img = img.resize((bmp_w, bmp_h), Image.LANCZOS)
     return img
 
 
-# ---------------------------------------------------------------------------
-#  ART 2: GG Relief Text
-# ---------------------------------------------------------------------------
 
-# (text, gui_x, gui_y, color_rgb)
 _GG_LINES = [
     (r"_____/\\\\\\\\\\\\_____/\\\\\\\\\\\\_",                    248, 330, (0xFF, 0xAA, 0xAA)),
     (r" ___/\\\//////////____/\\\//////////__",                     248, 338, (0xFF, 0x77, 0x77)),
@@ -106,7 +87,6 @@ _GG_LINES = [
     (r"        __\////////////_____\////////////____",              248, 394, (0x55, 0x08, 0x08)),
 ]
 
-# (x, y, color) for pipe staircase characters
 _GG_PIPES = [
     (245, 338, (0xFF, 0x77, 0x77)),
     (245, 346, (0xFF, 0x55, 0x55)), (249, 346, (0xFF, 0x55, 0x55)),
@@ -120,19 +100,13 @@ _GG_PIPES = [
 
 
 def render_gg_art() -> Image.Image:
-    """Render the GG Relief ASCII art as a Pillow Image.
-
-    Returns a 210x140 bitmap with black background.
-    """
     bmp_x, bmp_y = 240, 268
     bmp_w, bmp_h = 210, 140
 
-    # Render at 2x for sharper text
     scale = 2
     img = Image.new("RGB", (bmp_w * scale, bmp_h * scale), (0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # Load Consolas Bold — 5.5pt maps to ~8px in Pillow
     font_size = 8 * scale
     try:
         font = ImageFont.truetype("consolab.ttf", font_size)
@@ -142,18 +116,15 @@ def render_gg_art() -> Image.Image:
         except OSError:
             font = ImageFont.load_default()
 
-    # Draw text lines
     for text, gx, gy, color in _GG_LINES:
         x = (gx - bmp_x) * scale
         y = (gy - bmp_y) * scale
         draw.text((x, y), text, fill=color, font=font)
 
-    # Draw pipe staircase
     for px, py, color in _GG_PIPES:
         x = (px - bmp_x) * scale
         y = (py - bmp_y) * scale
         draw.text((x, y), "|", fill=color, font=font)
 
-    # Downscale
     img = img.resize((bmp_w, bmp_h), Image.LANCZOS)
     return img

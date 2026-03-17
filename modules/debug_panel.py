@@ -9,10 +9,6 @@ from input.pixel import pixel_get_color
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-#  Tooltip / clipboard helpers
-# ---------------------------------------------------------------------------
-
 def _tooltip(text: str | None = None):
     try:
         from gui.tooltip import show_tooltip, hide_tooltip
@@ -26,17 +22,15 @@ def _tooltip(text: str | None = None):
 
 
 def _clipboard_set(text: str):
-    """Copy text to the Windows clipboard via tkinter (most reliable)."""
     try:
         root = state.root
         if root:
             root.clipboard_clear()
             root.clipboard_append(text)
-            root.update()  # required for clipboard to persist
+            root.update()
             return
     except Exception:
         pass
-    # Fallback: ctypes with safe clipboard context manager
     try:
         from util.clipboard import set_clipboard_text
         if not set_clipboard_text(text):
@@ -45,12 +39,7 @@ def _clipboard_set(text: str):
         log.error("Clipboard write failed: %s", e)
 
 
-# ---------------------------------------------------------------------------
-#  Pixel debug helpers
-# ---------------------------------------------------------------------------
-
 def _debug_px_check(label: str, x: int, y: int, expect: int, tol: int = 30) -> str:
-    """Check a pixel and format: label (x,y): color  R= G= B=  [expect dist PASS/FAIL]."""
     try:
         c = pixel_get_color(int(x), int(y))
     except Exception:
@@ -70,7 +59,6 @@ def _debug_px_check(label: str, x: int, y: int, expect: int, tol: int = 30) -> s
 
 
 def _debug_px(label: str, x: int, y: int) -> str:
-    """Read a pixel and format without pass/fail check."""
     try:
         c = pixel_get_color(int(x), int(y))
     except Exception:
@@ -81,18 +69,7 @@ def _debug_px(label: str, x: int, y: int) -> str:
     return f"  {label} ({x},{y}): 0x{c:06X}  R={r} G={g} B={b}\n"
 
 
-# ---------------------------------------------------------------------------
-#  Performance log helper
-# ---------------------------------------------------------------------------
-
 def perf_log_push(module: str, start_tick: float, outcome: str = "done"):
-    """Record a performance log entry.
-
-    Args:
-        module: Name of the module/operation.
-        start_tick: ``time.perf_counter()`` value at operation start.
-        outcome: Result string.
-    """
     elapsed_ms = int((time.perf_counter() - start_tick) * 1000)
     ts = time.strftime("%H:%M:%S")
     state.perf_log.append({
@@ -105,25 +82,17 @@ def perf_log_push(module: str, start_tick: float, outcome: str = "done"):
         state.perf_log.pop(0)
 
 
-# ---------------------------------------------------------------------------
-#  Main debug panel
-# ---------------------------------------------------------------------------
-
 def _get_debug_context() -> str:
-    """Determine the debug context from the active tab or last action."""
-    # Check last explicit context first
     if state.last_debug_context:
         return state.last_debug_context
-    # Derive from active module flags
     if state.qh_armed or state.qh_running or state.qh_log_entries:
         return "quickhatch"
     if state.run_name_and_spay_script or state.ns_log_entries:
         return "nameandspay"
     if state.run_claim_and_name_script:
         return "nameandspay"
-    # Read the actual notebook tab name first — flag checks alone can't
-    # distinguish tabs that share a flag (e.g. Popcorn and JoinSim both
-    # set pc_tab_active).
+    # Flag checks alone can't distinguish tabs that share a flag
+    # (e.g. Popcorn and JoinSim both set pc_tab_active) — read notebook tab name
     try:
         gui = state.main_gui
         if gui and gui.notebook:
@@ -143,7 +112,6 @@ def _get_debug_context() -> str:
                 return tab_map[tab_name]
     except Exception:
         pass
-    # Fall back to state flags
     if state.macro_tab_active:
         return "macro"
     if state.pc_tab_active:
@@ -158,17 +126,10 @@ def _get_debug_context() -> str:
 
 
 def show_debug_panel():
-    """Gather all diagnostic info and copy to clipboard (F11 handler).
-
-    Determines the active context from the last debug action or the
-    currently selected GUI tab, then builds a multi-section text report.
-    """
     ctx = _get_debug_context()
 
     ts = time.strftime("%H:%M:%S")
     out = f"AIO — Debug  [{ctx}]  {ts}\n{'=' * 30}\n"
-
-    # --- Context-specific sections ---
 
     if ctx == "joinsim":
         out += _section_joinsim()
@@ -195,7 +156,6 @@ def show_debug_panel():
     elif ctx == "nameandspay":
         out += _section_nameandspay()
     elif ctx == "misc":
-        # Misc tab — show any active misc-tab modules
         if state.qh_armed or state.qh_running or state.qh_log_entries:
             out += _section_quickhatch()
         elif state.run_name_and_spay_script or state.run_claim_and_name_script or state.ns_log_entries:
@@ -205,9 +165,6 @@ def show_debug_panel():
     else:
         out += "No hotkey used yet — open a tab or press a hotkey first\n"
 
-    # --- Always-shown sections ---
-
-    # Show popcorn log if there are entries and we're not already showing the popcorn section
     if ctx != "popcorn" and (state.pc_log_entries or state.pc_mode > 0 or state.pc_f10_step > 0):
         out += "\n=== POPCORN ===\n"
         out += f"Mode: {state.pc_mode}  F10: {state.pc_f10_step}  Speed: {state.pc_speed_names.get(state.pc_speed_mode, '?')}\n"
@@ -232,10 +189,6 @@ def show_debug_panel():
     from core.timers import timers
     timers.set_timer("debug_tip", lambda: _tooltip(None), -2000)
 
-
-# ---------------------------------------------------------------------------
-#  Section builders
-# ---------------------------------------------------------------------------
 
 def _section_joinsim() -> str:
     auto = getattr(state, "auto_sim_check", False)
@@ -333,7 +286,6 @@ def _section_quickhatch() -> str:
     out += f"InvPix: ({state.qh_inv_pix_x},{state.qh_inv_pix_y})  delay: {state.qh_click_delay}ms\n"
     out += (f"EmptyPix: ({state.qh_empty_pix_x},{state.qh_empty_pix_y})  "
             f"emptyColor: 0x{state.qh_empty_color:06X}  tol: {state.qh_empty_tol}\n")
-    # Live pixel read at emptyPix for diagnostics
     try:
         live = pixel_get_color(int(state.qh_empty_pix_x), int(state.qh_empty_pix_y))
         from modules.quick_hatch import _color_diff_sum
@@ -522,7 +474,6 @@ def _section_pixel_coordinates() -> str:
     out += _debug_px_check("obConfirm", state.ob_confirm_pix_x, state.ob_confirm_pix_y, 0xFFFFFF, 15)
     out += _debug_px("obRightTab", state.ob_right_tab_pix_x, state.ob_right_tab_pix_y)
     out += _debug_px("obUploadReady", state.ob_upload_ready_pix_x, state.ob_upload_ready_pix_y)
-    # Data loaded: expect R=130-190, G=180-230, B=195-245
     dlc = pixel_get_color(int(state.ob_data_loaded_pix_x), int(state.ob_data_loaded_pix_y))
     dl_r = (dlc >> 16) & 0xFF
     dl_g = (dlc >> 8) & 0xFF
@@ -538,7 +489,6 @@ def _section_pixel_coordinates() -> str:
     out += _debug_px("obTimer", state.ob_timer_pix_x, state.ob_timer_pix_y)
     out += _debug_px("obInvFail", state.ob_inv_fail_btn_x, state.ob_inv_fail_btn_y)
 
-    # Show OB log if any
     if state.ob_log:
         out += "\n--- OB Log (last 20) ---\n"
         for entry in state.ob_log[-20:]:

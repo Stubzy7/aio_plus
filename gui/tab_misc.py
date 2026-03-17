@@ -7,17 +7,11 @@ from core.state import state
 
 
 class TabMisc:
-    """Builds the Misc tab UI inside the given parent frame."""
 
     def __init__(self, parent_frame: ttk.Frame, state: dict):
         self.parent = parent_frame
         self.state = state
 
-        # ══════════════════════════════════════════════════════
-        # QUICK HATCH section
-        # ══════════════════════════════════════════════════════
-
-        # Mode checkboxes (mutually exclusive via callbacks)
         self.qh_all_var = tk.BooleanVar(value=(getattr(state, "qh_mode", 0) == 1))
         self.qh_all_cb = tk.Checkbutton(
             parent_frame, text="Quick Hatch (All)", variable=self.qh_all_var,
@@ -32,7 +26,6 @@ class TabMisc:
         )
         self.qh_single_cb.place(x=160, y=7, width=140, height=23)
 
-        # Help button
         self.qh_help_btn = tk.Button(
             parent_frame, text="?", font=FONT_SMALL_BOLD, fg=FG_ACCENT,
             bg=BG_DARK, activebackground=BG_DARK, activeforeground=FG_ACCENT,
@@ -40,14 +33,12 @@ class TabMisc:
         )
         self.qh_help_btn.place(x=350, y=7, width=24, height=23)
 
-        # Status text
         self.qh_status = tk.Label(
             parent_frame, text="Select a mode then press START",
             bg=BG_COLOR, fg=FG_DIM, font=FONT_SMALL_ITALIC,
         )
         self.qh_status.place(x=22, y=37, width=200, height=14)
 
-        # ── Claim / Name row ─────────────────────────────────
         self.cn_label = tk.Label(
             parent_frame, text="Claim/Name",
             bg=BG_COLOR, fg=FG_ACCENT, font=FONT_BOLD,
@@ -68,7 +59,6 @@ class TabMisc:
         )
         self.depo_embryo_cb.place(x=135, y=65, width=110, height=20)
 
-        # ── Name / Spay row ──────────────────────────────────
         self.ns_label = tk.Label(
             parent_frame, text="Name/Spay",
             bg=BG_COLOR, fg=FG_ACCENT, font=FONT_BOLD,
@@ -89,7 +79,6 @@ class TabMisc:
         )
         self.depo_eggs_cb.place(x=135, y=89, width=100, height=20)
 
-        # ── Dino Name row ────────────────────────────────────
         self.name_label = tk.Label(
             parent_frame, text="Name:", anchor="w",
             bg=BG_COLOR, fg=FG_COLOR, font=FONT_BOLD,
@@ -113,7 +102,6 @@ class TabMisc:
         )
         self.name_del_btn.place(x=226, y=115, width=16, height=21)
 
-        # Cryo checkbox
         self.cryo_var = tk.BooleanVar(value=getattr(state, "qh_cryo_after", False))
         self.cryo_cb = tk.Checkbutton(
             parent_frame, text="Cryo", variable=self.cryo_var,
@@ -121,7 +109,6 @@ class TabMisc:
         )
         self.cryo_cb.place(x=248, y=115, width=55, height=25)
 
-        # START button for quick hatch
         self.qh_start_btn = tk.Button(
             parent_frame, text="START", font=FONT_BOLD, fg=FG_ACCENT,
             bg=BG_DARK, activebackground=BG_DARK, activeforeground=FG_ACCENT,
@@ -129,13 +116,9 @@ class TabMisc:
         )
         self.qh_start_btn.place(x=308, y=112, width=70, height=28)
 
-        # ── Separator ────────────────────────────────────────
         self.sep1 = tk.Frame(parent_frame, bg=FG_DIM, height=1)
         self.sep1.place(x=8, y=145, width=366)
 
-        # ══════════════════════════════════════════════════════
-        # INI section
-        # ══════════════════════════════════════════════════════
         self.ini_title = tk.Label(
             parent_frame, text="Apply INI  \u2014  F5",
             bg=BG_COLOR, fg=FG_ACCENT, font=FONT_BOLD,
@@ -148,7 +131,6 @@ class TabMisc:
         )
         self.ini_subtitle.place(x=22, y=171, width=200)
 
-        # Command key row
         self.cmd_key_label = tk.Label(
             parent_frame, text="Cmd Key:", anchor="w",
             bg=BG_COLOR, fg=FG_COLOR, font=FONT_SMALL,
@@ -173,7 +155,6 @@ class TabMisc:
         )
         self.cmd_key_save_btn.place(x=175, y=191, width=44, height=20)
 
-        # Custom INI
         self.custom_ini_label = tk.Label(
             parent_frame, text="Custom INI (blank = default):",
             bg=BG_COLOR, fg=FG_DIM, font=FONT_SMALL,
@@ -200,7 +181,6 @@ class TabMisc:
         )
         self.save_hatch_btn.place(x=22, y=299, width=96, height=20)
 
-        # ── Auto Pin / NVIDIA Filter ─────────────────────────
         self.sep_pin = tk.Label(
             parent_frame, text="|", bg=BG_COLOR, fg=FG_ACCENT, font=FONT_BOLD,
         )
@@ -220,9 +200,6 @@ class TabMisc:
         )
         self.nf_cb.place(x=136, y=319, width=120, height=20)
 
-        # ══════════════════════════════════════════════════════
-        # AUTO IMPRINT section (right column)
-        # ══════════════════════════════════════════════════════
         self.imprint_sep = tk.Frame(parent_frame, bg=FG_ACCENT, width=1)
         self.imprint_sep.place(x=230, y=171, width=1, height=40)
 
@@ -253,7 +230,6 @@ class TabMisc:
         )
         self.imprint_hide_cb.place(x=242, y=205, width=140, height=16)
 
-        # Inv Key
         self.imprint_key_label = tk.Label(
             parent_frame, text="Inv Key:", anchor="w",
             bg=BG_COLOR, fg=FG_COLOR, font=FONT_SMALL,
@@ -277,9 +253,6 @@ class TabMisc:
         )
         self.imprint_status.place(x=242, y=253, width=190, height=16)
 
-        # ══════════════════════════════════════════════════════
-        # UPLOAD FILTER section (right column, bottom)
-        # ══════════════════════════════════════════════════════
         self.uf_sep = tk.Frame(parent_frame, bg=FG_DIM, height=1)
         self.uf_sep.place(x=236, y=273, width=180)
 
@@ -313,11 +286,7 @@ class TabMisc:
         )
         self.uf_del_btn.place(x=394, y=297, width=18, height=21)
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
     def _qh_toggle_mode(self, mode: int):
-        """Ensure only one Quick Hatch mode is active at a time."""
         if mode == 1:
             if self.qh_all_var.get():
                 self.qh_single_var.set(False)
@@ -326,7 +295,6 @@ class TabMisc:
                 self.qh_all_var.set(False)
 
     def _cn_toggled(self):
-        """Claim/Name and Name/Spay are mutually exclusive."""
         if self.cn_enable_var.get():
             self.ns_enable_var.set(False)
 
@@ -346,9 +314,6 @@ class TabMisc:
             self.depo_embryo_var.set(False)
             state.depo_embryo_enabled = False
 
-    # ------------------------------------------------------------------
-    # Stub callbacks
-    # ------------------------------------------------------------------
     def _show_ns_help(self):
         from gui.dialogs import show_help_dialog
         show_help_dialog("Hatch & Name Modes",
@@ -366,13 +331,11 @@ class TabMisc:
             self.parent)
 
     def _qh_start(self):
-        """Arm Quick Hatch — sync mode/options from checkboxes, call module."""
         import logging
         _log = logging.getLogger(__name__)
         from modules.quick_hatch import qh_start
         from gui.tooltip import show_tooltip
 
-        # Sync mode from checkboxes
         if self.qh_all_var.get():
             state.qh_mode = 1
         elif self.qh_single_var.get():
@@ -380,10 +343,6 @@ class TabMisc:
         else:
             state.qh_mode = 0
 
-        # Sync name/claim options — use separate "enabled" flags so the
-        # disarm check in qh_start() can distinguish already-armed state
-        # from fresh checkbox state (reads btn.Value separately from
-        # the active flags).
         state.cn_enabled = self.cn_enable_var.get()
         state.ns_enabled = self.ns_enable_var.get()
         state.depo_embryo_enabled = self.depo_embryo_var.get()
@@ -395,7 +354,6 @@ class TabMisc:
                   state.depo_eggs_enabled, state.depo_embryo_enabled,
                   state.qh_cryo_after)
 
-        # Sync dino name from combo
         name = self.name_combo.get().strip()
         if name:
             state.dino_name = name
@@ -408,19 +366,16 @@ class TabMisc:
                   state.run_name_and_spay_script, state.depo_eggs_active,
                   state.depo_embryo_active, state.depo_cycle)
 
-        # Always hide GUI on arm (not just when hatch enabled)
         any_armed = (state.qh_armed or state.run_claim_and_name_script
                      or state.run_name_and_spay_script
                      or state.depo_eggs_active or state.depo_embryo_active)
         _log.info("_qh_start: any_armed=%s main_gui=%s", any_armed, state.main_gui)
         if any_armed:
             state.gui_visible = False
-            # Build tooltip text
             if state.depo_cycle:
                 from modules.quick_hatch import depo_build_tooltip
                 tt = depo_build_tooltip()
             else:
-                # No depo cycle — simple hatch/CN/NS tooltip
                 parts = []
                 if state.qh_armed:
                     mode_label = "All" if state.qh_mode == 1 else "Single"
@@ -432,11 +387,9 @@ class TabMisc:
                 parts.append("F1 = stop")
                 tt = "\n".join(parts)
             _log.info("_qh_start: showing tooltip: %r", tt)
-            # Show tooltip first, then hide GUI — tooltip is a separate
-            # Toplevel but needs root visible during creation on some systems
+            # Show tooltip before hiding GUI — needs root visible during creation
             show_tooltip(tt, 0, 0)
             if state.main_gui:
-                # Defer hide so the tooltip Toplevel gets created first
                 self.parent.after(50, state.main_gui.hide)
         else:
             _log.info("_qh_start: nothing armed, no tooltip")
@@ -462,7 +415,6 @@ class TabMisc:
         self.name_combo.set(state.cn_name_list[0] if state.cn_name_list else "")
 
     def _ini_detect_key(self):
-        """Bind next key press to fill the command key entry."""
         toplevel = self.parent.winfo_toplevel()
         self.cmd_key_edit.delete(0, tk.END)
         self.cmd_key_edit.insert(0, "Press a key...")
@@ -485,7 +437,6 @@ class TabMisc:
         write_ini("ini", "customcommand", self.state.ini_custom_command)
 
     def _save_hatch_settings(self):
-        """Persist hatch-related settings to INI."""
         from core.config import write_ini
         mode = 0
         if self.qh_all_var.get():
@@ -509,17 +460,14 @@ class TabMisc:
         write_ini("NVIDIAFilter", "Enabled", str(int(self.nf_var.get())))
 
     def _imprint_toggle(self):
-        """Toggle the Auto Imprint scanner on/off."""
         from modules.auto_imprint import imprint_toggle_armed
 
-        # Sync inventory key from edit
         inv_key = self.imprint_inv_key_edit.get().strip()
         if inv_key:
             state.imprint_inventory_key = inv_key
 
         imprint_toggle_armed()
 
-        # Update button text
         if getattr(state, "imprint_scanning", False):
             self.imprint_start_btn.configure(text="Stop")
             if state.main_gui:

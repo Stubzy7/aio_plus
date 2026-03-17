@@ -11,7 +11,6 @@ from input.mouse import set_cursor_pos
 
 
 class MainWindow:
-    """The main AIO GUI window with 8 tabs."""
 
     def __init__(self, root: tk.Tk):
         self.root = root
@@ -20,16 +19,14 @@ class MainWindow:
         self.root.attributes("-topmost", True)
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-        self.root.geometry("450x452+177+330")  # w450, tab h408 + status bar + padding
+        self.root.geometry("450x452+177+330")
         self.root.configure(padx=0, pady=0)
 
         apply_theme(self.root)
 
-        # Main notebook (tabs) — x0 y0 w450 h408
         self.notebook = ttk.Notebook(self.root, width=450, height=408)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
 
-        # Create tab frames
         self.tab_frames: dict[str, ttk.Frame] = {}
         self.tab_names = [
             "JoinSim", "Magic F", "AutoLvL", "Popcorn",
@@ -42,14 +39,12 @@ class MainWindow:
 
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
 
-        # Ctrl+Tab / Ctrl+Shift+Tab to cycle main tabs only
         self.root.bind("<Control-Tab>", self._next_tab)
         self.root.bind("<Control-Shift-Tab>", self._prev_tab)
-        # Prevent default notebook traversal (which can focus sub-widgets)
+        # Bind on notebook too to prevent default traversal focusing sub-widgets
         self.notebook.bind("<Control-Tab>", self._next_tab)
         self.notebook.bind("<Control-Shift-Tab>", self._prev_tab)
 
-        # Bottom status bar (below tabs)
         status_frame = tk.Frame(self.root, bg=BG_COLOR, height=24)
         status_frame.pack(fill=tk.X, side=tk.BOTTOM)
 
@@ -74,34 +69,28 @@ class MainWindow:
         )
         self.app_select_label.place(x=320, y=2, width=120)
 
-        # Tab content builders (set by tab modules)
         self._tab_builders: dict[str, object] = {}
         self._on_tab_change_callback = None
 
     def set_tab_change_callback(self, callback):
-        """Set a callback for tab changes: callback(tab_name)."""
         self._on_tab_change_callback = callback
 
     def get_current_tab(self) -> str:
-        """Get the name of the currently selected tab."""
         idx = self.notebook.index(self.notebook.select())
         return self.tab_names[idx]
 
     def select_tab(self, name: str):
-        """Select a tab by name."""
         if name in self.tab_frames:
             idx = self.tab_names.index(name)
             self.notebook.select(idx)
 
     def _next_tab(self, event=None):
-        """Ctrl+Tab: cycle to next main tab."""
         idx = self.notebook.index(self.notebook.select())
         idx = (idx + 1) % len(self.tab_names)
         self.notebook.select(idx)
-        return "break"  # prevent default traversal
+        return "break"
 
     def _prev_tab(self, event=None):
-        """Ctrl+Shift+Tab: cycle to previous main tab."""
         idx = self.notebook.index(self.notebook.select())
         idx = (idx - 1) % len(self.tab_names)
         self.notebook.select(idx)
@@ -117,12 +106,10 @@ class MainWindow:
         self.root.destroy()
 
     def show(self):
-        """Show the window and steal focus from ARK."""
         self.root.deiconify()
         self.root.geometry("450x452+177+330")
         self.root.attributes("-topmost", True)
 
-        # Steal focus from ARK immediately
         try:
             hwnd = int(self.root.wm_frame(), 16)
         except Exception:
@@ -134,21 +121,15 @@ class MainWindow:
         self.root.after(50, lambda: set_cursor_pos(177 + 225, 330 + 204))
 
     def show_passive(self):
-        """Show the window WITHOUT stealing focus from ARK.
-
-        Used by modules (sheep, macros) that need the GUI visible
-        but want ARK to keep input focus so camera/controls keep working.
-        """
+        # Show without stealing focus so ARK keeps input focus
         self.root.deiconify()
         self.root.geometry("450x452+177+330")
         self.root.attributes("-topmost", True)
 
     def hide(self):
-        """Hide the window."""
         self.root.withdraw()
 
     def toggle_visibility(self):
-        """Toggle window visibility."""
         if self.root.state() == "withdrawn":
             self.show()
         else:

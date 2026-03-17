@@ -7,13 +7,11 @@ from core.state import state
 
 
 class TabCraft:
-    """Builds the Craft tab UI inside the given parent frame."""
 
     def __init__(self, parent_frame: ttk.Frame, state: dict):
         self.parent = parent_frame
         self.state = state
 
-        # ── Help button (top-right) ─────────────────────────
         self.grid_help_btn = tk.Button(
             parent_frame, text="?", font=FONT_SMALL_BOLD, fg=FG_ACCENT,
             bg=BG_DARK, activebackground=BG_DARK, activeforeground=FG_ACCENT,
@@ -21,7 +19,6 @@ class TabCraft:
         )
         self.grid_help_btn.place(x=357, y=5, width=32, height=18)
 
-        # ── Tally / Count button ─────────────────────────
         self.sep_label_top = tk.Label(
             parent_frame, text="|", bg=BG_COLOR, fg=FG_ACCENT, font=FONT_BOLD,
         )
@@ -40,16 +37,12 @@ class TabCraft:
         )
         self.tally_hint.place(x=283, y=23, width=100, height=12)
 
-        # ══════════════════════════════════════════════════════
-        # SIMPLE CRAFT section
-        # ══════════════════════════════════════════════════════
         self.simple_title = tk.Label(
             parent_frame, text="Simple Craft",
             bg=BG_COLOR, fg=FG_ACCENT, font=FONT_BOLD,
         )
         self.simple_title.place(x=37, y=5, width=120, height=18)
 
-        # Preset checkboxes row 1
         self.simple_spark_var = tk.BooleanVar()
         self.simple_spark_cb = tk.Checkbutton(
             parent_frame, text="spark", variable=self.simple_spark_var,
@@ -71,7 +64,6 @@ class TabCraft:
         )
         self.simple_elec_cb.place(x=163, y=25, width=90, height=23)
 
-        # Preset checkboxes row 2
         self.simple_adv_var = tk.BooleanVar()
         self.simple_adv_cb = tk.Checkbutton(
             parent_frame, text="adv", variable=self.simple_adv_var,
@@ -86,7 +78,6 @@ class TabCraft:
         )
         self.simple_poly_cb.place(x=95, y=48, width=60, height=23)
 
-        # Extra clicks
         self.extra_clicks_label = tk.Label(
             parent_frame, text="Extra clicks",
             bg=BG_COLOR, fg=FG_DIM, font=("Segoe UI", 7),
@@ -99,7 +90,6 @@ class TabCraft:
         self.extra_clicks_edit.insert(0, str(getattr(state, "ac_extra_clicks", 0)))
         self.extra_clicks_edit.place(x=307, y=52, width=25, height=18)
 
-        # Loop checkbox
         self.simple_loop_var = tk.BooleanVar()
         self.simple_loop_cb = tk.Checkbutton(
             parent_frame, text="Loop", variable=self.simple_loop_var,
@@ -107,7 +97,6 @@ class TabCraft:
         )
         self.simple_loop_cb.place(x=201, y=48, width=55, height=23)
 
-        # Custom filter row
         self.simple_custom_var = tk.BooleanVar()
         self.simple_custom_cb = tk.Checkbutton(
             parent_frame, text="Custom:", variable=self.simple_custom_var,
@@ -132,7 +121,6 @@ class TabCraft:
         )
         self.simple_filter_del_btn.place(x=181, y=82, width=14, height=13)
 
-        # Simple START button
         self.simple_start_btn = tk.Button(
             parent_frame, text="START", font=FONT_BOLD, fg=FG_ACCENT,
             bg=BG_DARK, activebackground=BG_DARK, activeforeground=FG_ACCENT,
@@ -140,20 +128,15 @@ class TabCraft:
         )
         self.simple_start_btn.place(x=201, y=71, width=100, height=28)
 
-        # ── Separator ────────────────────────────────────────
         self.sep1 = tk.Frame(parent_frame, bg=FG_DIM, height=1)
         self.sep1.place(x=23, y=103, width=366)
 
-        # ══════════════════════════════════════════════════════
-        # INVENTORY TIMED section
-        # ══════════════════════════════════════════════════════
         self.timed_title = tk.Label(
             parent_frame, text="Inventory Timed",
             bg=BG_COLOR, fg=FG_ACCENT, font=FONT_BOLD,
         )
         self.timed_title.place(x=37, y=108, width=260, height=18)
 
-        # Timed preset checkboxes row 1
         self.timed_elec_var = tk.BooleanVar()
         self.timed_elec_cb = tk.Checkbutton(
             parent_frame, text="electronics  3:20", variable=self.timed_elec_var,
@@ -168,7 +151,6 @@ class TabCraft:
         )
         self.timed_adv_cb.place(x=165, y=128, width=90, height=23)
 
-        # Timed preset checkboxes row 2
         self.timed_poly_var = tk.BooleanVar()
         self.timed_poly_cb = tk.Checkbutton(
             parent_frame, text="poly  3:30", variable=self.timed_poly_var,
@@ -176,7 +158,6 @@ class TabCraft:
         )
         self.timed_poly_cb.place(x=37, y=150, width=90, height=23)
 
-        # Timed loop checkbox
         self.timed_loop_var = tk.BooleanVar()
         self.timed_loop_cb = tk.Checkbutton(
             parent_frame, text="Loop", variable=self.timed_loop_var,
@@ -184,7 +165,6 @@ class TabCraft:
         )
         self.timed_loop_cb.place(x=311, y=150, width=55, height=23)
 
-        # Timed custom filter row
         self.timed_custom_var = tk.BooleanVar()
         self.timed_custom_cb = tk.Checkbutton(
             parent_frame, text="Custom:", variable=self.timed_custom_var,
@@ -209,7 +189,6 @@ class TabCraft:
         )
         self.timed_filter_del_btn.place(x=181, y=184, width=14, height=13)
 
-        # Timer (s) entry
         self.timed_secs_label = tk.Label(
             parent_frame, text="Timer (s):", anchor="w",
             bg=BG_COLOR, fg=FG_COLOR, font=FONT_SMALL,
@@ -220,7 +199,6 @@ class TabCraft:
         self.timed_secs_edit.insert(0, "120")
         self.timed_secs_edit.place(x=253, y=174, width=52, height=23)
 
-        # Timed START button
         self.timed_start_btn = tk.Button(
             parent_frame, text="START", font=FONT_BOLD, fg=FG_ACCENT,
             bg=BG_DARK, activebackground=BG_DARK, activeforeground=FG_ACCENT,
@@ -228,20 +206,15 @@ class TabCraft:
         )
         self.timed_start_btn.place(x=311, y=173, width=100, height=28)
 
-        # ── Separator ────────────────────────────────────────
         self.sep2 = tk.Frame(parent_frame, bg=FG_DIM, height=1)
         self.sep2.place(x=23, y=207, width=366)
 
-        # ══════════════════════════════════════════════════════
-        # GRID WALK section
-        # ══════════════════════════════════════════════════════
         self.grid_title = tk.Label(
             parent_frame, text="Grid Walk",
             bg=BG_COLOR, fg=FG_ACCENT, font=FONT_BOLD,
         )
         self.grid_title.place(x=37, y=212, width=80, height=18)
 
-        # How many inventories row
         self.grid_inv_label = tk.Label(
             parent_frame, text="How many inventories:", anchor="w",
             bg=BG_COLOR, fg=FG_COLOR, font=FONT_SMALL,
@@ -268,7 +241,6 @@ class TabCraft:
         self.rows_edit.insert(0, str(getattr(state, "ac_grid_rows", 11)))
         self.rows_edit.place(x=263, y=232, width=50, height=18)
 
-        # OCR resize / copy buttons
         self.ocr_resize_btn = tk.Button(
             parent_frame, text="Resize", font=("Segoe UI", 7), fg=FG_COLOR,
             bg=BG_DARK, activebackground=BG_DARK, activeforeground=FG_COLOR,
@@ -283,7 +255,6 @@ class TabCraft:
         )
         self.ocr_copy_btn.place(x=374, y=232, width=30, height=18)
 
-        # OCR Count checkbox
         self.ocr_enable_var = tk.BooleanVar(value=getattr(state, "ac_ocr_enabled", False))
         self.ocr_enable_cb = tk.Checkbutton(
             parent_frame, text="Count", variable=self.ocr_enable_var,
@@ -292,7 +263,6 @@ class TabCraft:
         )
         self.ocr_enable_cb.place(x=320, y=253, width=70, height=18)
 
-        # Walk delay row
         self.walk_delay_label = tk.Label(
             parent_frame, text="Walk delay (ms):", anchor="w",
             bg=BG_COLOR, fg=FG_COLOR, font=FONT_SMALL,
@@ -319,7 +289,6 @@ class TabCraft:
         self.vwalk_edit.insert(0, str(getattr(state, "ac_grid_vwalk", 850)))
         self.vwalk_edit.place(x=263, y=252, width=50, height=18)
 
-        # Grid preset checkboxes row 1
         self.grid_elec_var = tk.BooleanVar()
         self.grid_elec_cb = tk.Checkbutton(
             parent_frame, text="electronics", variable=self.grid_elec_var,
@@ -341,7 +310,6 @@ class TabCraft:
         )
         self.grid_poly_cb.place(x=193, y=273, width=55, height=23)
 
-        # Grid preset checkboxes row 2
         self.grid_spark_var = tk.BooleanVar()
         self.grid_spark_cb = tk.Checkbutton(
             parent_frame, text="spark", variable=self.grid_spark_var,
@@ -356,7 +324,6 @@ class TabCraft:
         )
         self.grid_gp_cb.place(x=105, y=295, width=50, height=23)
 
-        # Grid custom filter row
         self.grid_custom_var = tk.BooleanVar()
         self.grid_custom_cb = tk.Checkbutton(
             parent_frame, text="Custom:", variable=self.grid_custom_var,
@@ -381,7 +348,6 @@ class TabCraft:
         )
         self.grid_filter_del_btn.place(x=181, y=329, width=14, height=13)
 
-        # Grid START button
         self.grid_start_btn = tk.Button(
             parent_frame, text="START", font=FONT_BOLD, fg=FG_ACCENT,
             bg=BG_DARK, activebackground=BG_DARK, activeforeground=FG_ACCENT,
@@ -389,7 +355,6 @@ class TabCraft:
         )
         self.grid_start_btn.place(x=201, y=318, width=100, height=28)
 
-        # Take-All checkbox with separator
         self.sep_takeall = tk.Label(
             parent_frame, text="|", bg=BG_COLOR, fg=FG_ACCENT, font=FONT_BOLD,
         )
@@ -408,18 +373,13 @@ class TabCraft:
         )
         self.takeall_hint.place(x=320, y=340, width=80, height=12)
 
-        # ── Feed interval footer ─────────────────────────────
         self.feed_label = tk.Label(
             parent_frame, text="Food/Water (9-0) feeds char every 45 mins in Grid mode",
             bg=BG_COLOR, fg="#666666", font=("Segoe UI", 7, "italic"), justify="center",
         )
         self.feed_label.place(x=23, y=353, width=366, height=14)
 
-    # ------------------------------------------------------------------
-    # Cross-mode mutual exclusion
-    # ------------------------------------------------------------------
     def _mode_toggle(self, active_mode: str, timer_secs: int | None = None):
-        """When a checkbox in one craft mode is checked, uncheck the other modes."""
         simple_vars = [self.simple_spark_var, self.simple_gp_var, self.simple_elec_var,
                        self.simple_adv_var, self.simple_poly_var, self.simple_custom_var]
         timed_vars = [self.timed_elec_var, self.timed_adv_var, self.timed_poly_var,
@@ -433,14 +393,10 @@ class TabCraft:
                 for v in vars_list:
                     v.set(False)
 
-        # For timed presets, update the timer seconds edit
         if active_mode == "timed" and timer_secs is not None:
             self.timed_secs_edit.delete(0, tk.END)
             self.timed_secs_edit.insert(0, str(timer_secs))
 
-    # ------------------------------------------------------------------
-    # Callbacks
-    # ------------------------------------------------------------------
     def _show_grid_help(self):
         from gui.dialogs import show_help_dialog
         show_help_dialog("Craft Help",
@@ -502,7 +458,6 @@ class TabCraft:
         combo.set(state_list[0] if state_list else "")
 
     def _build_presets(self, section: str) -> list[tuple[str, str]]:
-        """Build list of (name, filter) from checked presets for the given section."""
         preset_map = {
             "simple": [
                 (self.simple_spark_var, "spark", "rk"),
@@ -535,7 +490,6 @@ class TabCraft:
                 secs = timer_map.get(name, 120)
                 result.append((name, filt, secs))
 
-        # Custom filter
         custom_var = getattr(self, f"{section}_custom_var")
         custom_combo = getattr(self, f"{section}_filter_combo")
         if custom_var.get():
@@ -546,7 +500,6 @@ class TabCraft:
         return result
 
     def _arm_presets(self, presets: list):
-        """Load preset names/filters/timer_secs into state."""
         state.ac_preset_names = [p[0] for p in presets]
         state.ac_preset_filters = [p[1] for p in presets]
         state.ac_preset_timer_secs = [p[2] for p in presets]
@@ -630,7 +583,6 @@ class TabCraft:
         except ValueError:
             vwalk = 850
 
-        # Persist grid settings to INI
         write_ini("Grid", "Cols", str(cols))
         write_ini("Grid", "Rows", str(rows))
         write_ini("Grid", "HWalk", str(hwalk))
@@ -644,7 +596,6 @@ class TabCraft:
     def _ocr_toggle_resize(self):
         from modules.auto_craft import ac_ocr_toggle_resize
         ac_ocr_toggle_resize()
-        # Update button text when resizing
         if state.ac_ocr_resizing:
             self.ocr_resize_btn.configure(
                 text=f"{state.ac_ocr_snap_w}x{state.ac_ocr_snap_h}")
@@ -652,7 +603,6 @@ class TabCraft:
             self.ocr_resize_btn.configure(text="Resize")
 
     def _ocr_copy_total(self):
-        """Copy the OCR crafted count total to clipboard."""
         try:
             total = getattr(state, "ac_ocr_total", 0)
             self.parent.clipboard_clear()

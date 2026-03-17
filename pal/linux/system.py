@@ -1,8 +1,3 @@
-"""Linux system functions.
-
-Drop-in replacement for platform.win32.system — same public API.
-"""
-
 import fcntl
 import os
 import threading
@@ -12,12 +7,7 @@ from pynput import keyboard as pynput_kb
 from .keyboard import VK_MAP
 
 
-# ---------------------------------------------------------------------------
-# Mutex (single-instance lock)
-# ---------------------------------------------------------------------------
-
 def acquire_mutex(name: str = "GG_AIO_MUTEX"):
-    """Acquire a file-based mutex. Returns (lock_file, True) or (None, False)."""
     lock_path = f"/tmp/{name}.lock"
     try:
         lock_file = open(lock_path, "w")
@@ -28,7 +18,6 @@ def acquire_mutex(name: str = "GG_AIO_MUTEX"):
 
 
 def release_mutex(mutex):
-    """Release a file-based mutex."""
     if mutex is not None:
         try:
             fcntl.flock(mutex, fcntl.LOCK_UN)
@@ -37,18 +26,12 @@ def release_mutex(mutex):
             pass
 
 
-# ---------------------------------------------------------------------------
-# Message box
-# ---------------------------------------------------------------------------
-
 def message_box(text: str, title: str = "GG AIO", flags: int = 0x30):
-    """Show a message box using tkinter."""
     try:
         import tkinter as tk
         from tkinter import messagebox
         root = tk.Tk()
         root.withdraw()
-        # flags: 0x30 = MB_ICONWARNING, 0x10 = MB_ICONERROR, 0x40 = MB_ICONINFORMATION
         if flags & 0x10:
             messagebox.showerror(title, text)
         elif flags & 0x40:
@@ -60,23 +43,13 @@ def message_box(text: str, title: str = "GG AIO", flags: int = 0x30):
         print(f"[{title}] {text}")
 
 
-# ---------------------------------------------------------------------------
-# Timer period (no-op on Linux)
-# ---------------------------------------------------------------------------
-
 def begin_timer_period(ms: int = 1):
-    """Request higher timer resolution. No-op on Linux."""
     pass
 
 
 def end_timer_period(ms: int = 1):
-    """Release higher timer resolution. No-op on Linux."""
     pass
 
-
-# ---------------------------------------------------------------------------
-# Async key state via pynput background listener
-# ---------------------------------------------------------------------------
 
 _pressed_keys: set[int] = set()
 _lock = threading.Lock()
@@ -84,7 +57,6 @@ _listener: pynput_kb.Listener | None = None
 
 
 def _key_to_vk(key) -> int:
-    """Convert a pynput key to a VK code."""
     if isinstance(key, pynput_kb.Key):
         _SPECIAL = {
             pynput_kb.Key.enter: 0x0D,
@@ -145,7 +117,6 @@ def _key_to_vk(key) -> int:
 
 
 def _start_key_listener():
-    """Start the background key state listener (once)."""
     global _listener
     if _listener is not None:
         return
@@ -168,11 +139,6 @@ def _start_key_listener():
 
 
 def get_async_key_state(vk: int) -> bool:
-    """Check if a key is currently pressed.
-
-    Equivalent to Windows GetAsyncKeyState(vk) & 0x8000.
-    Uses a background pynput listener to track key state.
-    """
     _start_key_listener()
     with _lock:
         return vk in _pressed_keys

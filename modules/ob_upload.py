@@ -8,77 +8,50 @@ from core.state import state
 from core.scaling import scale_x, scale_y, width_multiplier, height_multiplier
 from input.pixel import px_get, is_color_similar, pixel_search, wait_for_pixel
 from input.mouse import click, set_cursor_pos, mouse_move
-from input.keyboard import send, send_text, key_press, control_send
+from input.keyboard import send, send_text, send_text_vk, key_press, control_send
 from input.ocr import from_rect
 from input.window import win_exist, win_activate, control_click, find_window
 from util.color import color_r, color_g, color_b, color_distance
 from modules.nvidia_filter import nft as _nft
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _per_channel_match(c1: int, c2: int, tol: int) -> bool:
-    """Per-channel tolerance check.
-
-    Each R/G/B channel is compared independently — all must be within *tol*.
-    This is per-channel, NOT sum-of-channels.
-    """
     return (abs(color_r(c1) - color_r(c2)) <= tol
             and abs(color_g(c1) - color_g(c2)) <= tol
             and abs(color_b(c1) - color_b(c2)) <= tol)
 
 
 def _nf_search_tol(x1, y1, x2, y2, color, tol):
-    """Check a single-pixel region for a color within tolerance.
-
-    Returns True if the pixel at (x1, y1) matches *color* within *tol*.
-    Mirrors ``NFSearchTol()`` → ``PxSearch()`` → ``PixelSearch()`` which
-    uses per-channel tolerance.
-    """
     c = px_get(x1, y1)
     return _per_channel_match(c, color, tol)
 
 
 def _nf_pixel_wait(x, y, color, tol):
-    """Single-sample color check used inside polling loops."""
     c = px_get(x, y)
     return _per_channel_match(c, color, tol)
 
 
 def _nf_color_bright(c, threshold):
-    """True if all three channels exceed *threshold*."""
     return color_r(c) > threshold and color_g(c) > threshold and color_b(c) > threshold
 
 
 def _ark_hwnd():
-    """Return the HWND of the ARK window (0 if not found)."""
     return win_exist(state.ark_window)
 
 
 def _tick():
-    """Return a monotonic millisecond counter."""
     return int(time.monotonic() * 1000)
 
 
 def _sleep(ms):
-    """Sleep for *ms* milliseconds."""
     time.sleep(ms / 1000.0)
 
 
 def _log(msg):
-    """Append a message to the OB log list on state."""
     state.ob_log.append(msg)
 
 
-# ---------------------------------------------------------------------------
-# Status / Tooltip
-# ---------------------------------------------------------------------------
-
 def ob_set_status(msg: str):
-    """Update the OB upload status text, GUI label, and tooltip."""
     state.ob_status_text = msg
     try:
         from gui.tab_joinsim import update_ob_status
@@ -97,7 +70,6 @@ def ob_set_status(msg: str):
 
 
 def ob_tooltip_off():
-    """Disable in-game tooltips checkbox if it was on, tracking prior state."""
     col = px_get(state.ob_tooltip_pix_x, state.ob_tooltip_pix_y)
     g = color_g(col)
     b = color_b(col)
@@ -121,7 +93,6 @@ def ob_tooltip_off():
 
 
 def ob_tooltip_restore():
-    """Restore in-game tooltips if they were on before upload."""
     if state.ob_tooltips_were_on:
         _log("[TOOLTIP] restoring ON")
         hwnd = _ark_hwnd()
@@ -131,24 +102,11 @@ def ob_tooltip_restore():
         state.ob_tooltips_were_on = False
 
 
-# ---------------------------------------------------------------------------
-# Slot-empty detection
-# ---------------------------------------------------------------------------
-
 def ob_get_empty_slot_color(x: int, y: int) -> int:
-    """Return the current color at a slot position (for empty-reference capture).
-
-    Used to capture a reference color for empty-slot detection.
-    """
     return px_get(x, y)
 
 
 def ob_slot_is_empty(x: int, y: int, empty_ref: int = 0) -> bool:
-    """Return True if the inventory slot at *(x, y)* looks empty.
-
-    Ignores *empty_ref* and simply checks
-    whether all RGB channels are below 50 (dark/black slot).
-    """
     c = px_get(x, y)
     r = (c >> 16) & 0xFF
     g = (c >> 8) & 0xFF
@@ -156,16 +114,7 @@ def ob_slot_is_empty(x: int, y: int, empty_ref: int = 0) -> bool:
     return r < 50 and g < 50 and b < 50
 
 
-# ---------------------------------------------------------------------------
-# Character upload — load server from INI
-# ---------------------------------------------------------------------------
-
 def ob_char_load_server():
-    """Load the character-upload server number from INI config.
-
-    Reads [OBUpload] CharServer from INI and
-    populates the server list state for arrow-key cycling.
-    """
     from core.config import read_ini
     saved = read_ini("UploadChar", "CustomServer", "2386")
     state.ob_char_custom_server = saved if saved else "2386"
@@ -179,19 +128,14 @@ def ob_char_load_server():
     _log(f"Char server loaded: {state.ob_char_custom_server}  list={state.svr_list}")
 
 
-# ---------------------------------------------------------------------------
-# Stop / cleanup
-# ---------------------------------------------------------------------------
-
 def ob_stop_all(hide_gui: bool = True):
-    """Reset all OB upload state flags."""
     state.ob_upload_mode = 0
     state.ob_upload_armed = False
     state.ob_upload_running = False
     state.ob_upload_paused = False
     state.ob_active_filter = ""
     state.ob_upload_filter = ""
-    ob_set_status("")  # clears tooltip + GUI label
+    ob_set_status("")
     _ob_char_unregister_arrows()
     if hide_gui and state.main_gui is not None:
         try:
@@ -201,26 +145,13 @@ def ob_stop_all(hide_gui: bool = True):
             pass
 
 
-# ---------------------------------------------------------------------------
-# Overlay / inventory helpers
-# ---------------------------------------------------------------------------
-
 def ob_overlay_clear() -> bool:
-    """Check whether the 'Refreshing Inventory' overlay has cleared.
-
-    Returns True when the overlay pixel's red channel is bright enough,
-    meaning the normal inventory background is visible.
-    """
     col = px_get(state.ob_ov_pix_x, state.ob_ov_pix_y)
     r = color_r(col)
     return r > _nft(180, 1)
 
 
 def ob_check_inv_failed() -> bool:
-    """Detect and dismiss the 'Refreshing Inventory Failed' popup.
-
-    Returns True if the popup was found and dismissed.
-    """
     col = px_get(state.ob_inv_fail_btn_x, state.ob_inv_fail_btn_y)
     if _nf_color_bright(col, 220):
         hwnd = _ark_hwnd()
@@ -232,10 +163,6 @@ def ob_check_inv_failed() -> bool:
 
 
 def ob_item_present(filter_text: str) -> bool:
-    """Check if items matching *filter_text* are visible in the first slot.
-
-    Uses pixel-color heuristics specific to each item category.
-    """
     if filter_text == "cryop":
         wait = 0
         while not ob_overlay_clear() and wait < 60:
@@ -318,7 +245,6 @@ def ob_item_present(filter_text: str) -> bool:
 
 
 def ob_clear_filter():
-    """Clear the OB search bar — click it, select all, delete."""
     _log("[clear] Clearing search filter")
     mouse_move(int(state.my_search_bar_x), int(state.my_search_bar_y), 0)
     _sleep(50)
@@ -331,7 +257,6 @@ def ob_clear_filter():
 
 
 def ob_apply_their_filter(filter_text: str):
-    """Type a filter into the OB search bar using clipboard paste."""
     mouse_move(int(state.my_search_bar_x), int(state.my_search_bar_y), 0)
     _sleep(50)
     click()
@@ -349,23 +274,12 @@ def ob_apply_their_filter(filter_text: str):
 
 
 def _set_clipboard(text: str):
-    """Set the Windows clipboard to *text*."""
     from util.clipboard import set_clipboard_text
     if not set_clipboard_text(text):
         _log("[CLIPBOARD] set_clipboard_text failed")
 
 
-# ---------------------------------------------------------------------------
-# OCR timer check
-# ---------------------------------------------------------------------------
-
 def ob_check_upload_timer(filter_text: str = "") -> bool:
-    """Check for a cryofridge upload cooldown timer via OCR.
-
-    If a timer is detected, wait it out and re-arm so the user can press F
-    again once it expires.  Returns True if a timer was found (caller should
-    return early), False otherwise.
-    """
     if state.gui_visible and state.main_gui is not None:
         state.gui_visible = False
         try:
@@ -421,30 +335,21 @@ def ob_check_upload_timer(filter_text: str = "") -> bool:
         _log(f"Timer OCR failed: {e}")
 
     if timer_sec > 0:
+        m = timer_sec // 60
+        s = timer_sec % 60
         hwnd = _ark_hwnd()
         if hwnd:
             control_send(hwnd, "{Escape}")
         else:
             send("{Escape}")
         _sleep(200)
-        _log(f"Timer active — closing inv, countdown {timer_sec}s")
-        state.ob_timer_counting = True
-        while timer_sec > 0 and state.ob_upload_running:
-            m = timer_sec // 60
-            s = timer_sec % 60
-            ob_set_status(f"Upload timer: {m}:{s:02d} — Waiting...")
-            _sleep(1000)
-            timer_sec -= 1
-        state.ob_timer_counting = False
-        if not state.ob_upload_running:
-            return True
-        state.ob_upload_running = False
-        state.ob_upload_armed = True
         mode_label = {1: "Cryos", 2: "Tek+Cryos", 3: "Upload Char"}.get(
             state.ob_upload_mode, "Upload"
         )
-        ob_set_status(f"Timer done — F at transmitter ({mode_label})")
-        _log(f"Timer expired — re-armed ({mode_label})")
+        _log(f"Timer {m}:{s:02d} — closing inv, re-armed ({mode_label})")
+        state.ob_upload_running = False
+        state.ob_upload_armed = True
+        ob_set_status(f"Upload timer: {m}:{s:02d} — clear items, F at trans ({mode_label})")
         return True
 
     if filter_text:
@@ -452,25 +357,15 @@ def ob_check_upload_timer(filter_text: str = "") -> bool:
     return False
 
 
-# ---------------------------------------------------------------------------
-# Main upload loop
-# ---------------------------------------------------------------------------
-
 def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
                   check_empty: bool, close_on_done: bool = True,
                   skip_nav: bool = False, skip_clear: bool = False,
                   detect_as: str = "") -> bool:
-    """Core upload loop: navigate to upload tab, apply filter, then repeatedly
-    click-and-transfer items until the slot is empty or a stop condition fires.
-
-    Returns True if at least one item was present / processed, False otherwise.
-    """
     hwnd = _ark_hwnd()
     state.ob_upload_early_exit = False
     state.ob_init_failed = False
     detect_filter = detect_as if detect_as else filter_text
 
-    # ── Navigation to upload tab ──────────────────────────────────────────
     if not skip_nav:
         ob_set_status("Waiting for OB inventory...")
         wait_count = 0
@@ -548,7 +443,6 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
     _log(f"--- OBRunUpload({filter_text}) {datetime.now():%H:%M:%S} ---")
     _log("[1] Upload tab confirmed open")
 
-    # ── Wait for ARK data to load ─────────────────────────────────────────
     data_wait_start = _tick()
     data_loaded = False
     if not skip_nav:
@@ -582,7 +476,6 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
         _sleep(2000)
         return False
 
-    # ── Apply search filter ───────────────────────────────────────────────
     state.ob_active_filter = filter_text
     ob_apply_their_filter(filter_text)
     _log(f"[2] Filter applied: '{filter_text}' — search bar typed")
@@ -596,7 +489,6 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
     _sleep(150)
     _log("[3] Clicked slot 1 to defocus, moved mouse away, waiting for icon to settle")
 
-    # ── Check if items are actually present ───────────────────────────────
     item_check = ob_item_present(detect_filter)
     _log(f"[4] OBItemPresent check: {'FOUND' if item_check else 'NOT FOUND'}")
 
@@ -609,7 +501,6 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
         ob_clear_filter()
         return False
 
-    # ── Upload loop ───────────────────────────────────────────────────────
     _log("[5] Items confirmed present — starting upload loop")
     ob_set_status(start_msg)
     state.ob_upload_running = True
@@ -645,13 +536,11 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
         if not state.ob_upload_running:
             break
 
-        # ── First upload extra settle ─────────────────────────────────────
         if state.ob_first_upload:
             _sleep(300)
             state.ob_first_upload = False
             _log("[first-T] extra 300ms settle before very first upload")
 
-        # ── Click slot and press T to upload ──────────────────────────────
         mouse_move(int(state.my_first_slot_x), int(state.my_first_slot_y), 0)
         click()
         _sleep(state.ob_click_settle_ms)
@@ -709,7 +598,6 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
         _log(f"[T#{upload_count + 1}] +{_tick() - run_start_tick}ms "
              f"upload confirmed via overlay")
 
-        # ── Wait for overlay to clear (inventory refresh) ─────────────────
         if overlay_appeared:
             clear_wait = 0
             while not ob_overlay_clear() and clear_wait < 900:
@@ -767,7 +655,6 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
                 _sleep(1200)
                 return True
 
-        # ── Max items / OB full checks ────────────────────────────────────
         max_col = px_get(state.ob_max_items_pix_x, state.ob_max_items_pix_y)
         max_r = color_r(max_col)
         max_g = color_g(max_col)
@@ -791,7 +678,6 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
             _sleep(2000)
             break
 
-        # ── Early exit (Q pressed) ────────────────────────────────────────
         if state.ob_upload_early_exit:
             ob_set_status("Q pressed — waiting for refresh to clear...")
             early_wait = 0
@@ -814,7 +700,6 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
             _sleep(50)
         _sleep(50)
 
-        # ── Post-upload slot check ────────────────────────────────────────
         check1 = ob_item_present(detect_filter)
 
         if check1:
@@ -904,7 +789,6 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
             _sleep(2000)
             break
 
-    # ── Cleanup ───────────────────────────────────────────────────────────
     state.ob_upload_running = False
     if not skip_clear:
         ob_clear_filter()
@@ -922,31 +806,16 @@ def ob_run_upload(filter_text: str, start_msg: str, done_msg: str,
     return True
 
 
-# ---------------------------------------------------------------------------
-# Character upload — server cycling via arrow keys
-# ---------------------------------------------------------------------------
-
 def _ob_char_target_server() -> str:
-    """Determine which server to show as target.
-
-    Alternates between the custom server and 2386:
-    - If custom is not 2386 and we last uploaded to custom → show 2386
-    - Otherwise → show custom
-    """
-    custom = state.ob_char_custom_server or "2386"
-    if custom != "2386" and state.ob_char_last_dest == custom:
-        return "2386"
-    return custom
+    return state.ob_char_custom_server or "2386"
 
 
 def _ob_char_update_status():
-    """Update the tooltip/status to show current char upload target."""
     target = _ob_char_target_server()
     ob_set_status(f"Upload Char F at trans {target}")
 
 
 def _ob_char_cycle_server(direction: int):
-    """Cycle through the server list with arrow keys (left=-1, right=+1)."""
     if not state.svr_list:
         return
     state.ob_char_svr_idx = (state.ob_char_svr_idx + direction) % len(state.svr_list)
@@ -956,14 +825,12 @@ def _ob_char_cycle_server(direction: int):
 
 
 def _ob_char_save_server():
-    """Persist the current custom server to INI."""
     from core.config import write_ini
     if state.ob_char_custom_server:
         write_ini("UploadChar", "CustomServer", state.ob_char_custom_server)
 
 
 def _ob_char_register_arrows():
-    """Register left/right arrow hotkeys for server cycling while in char mode."""
     try:
         from core.hotkeys import HotkeyManager
         hk: HotkeyManager = state._hotkey_mgr
@@ -974,7 +841,6 @@ def _ob_char_register_arrows():
 
 
 def _ob_char_unregister_arrows():
-    """Unregister arrow key hotkeys when leaving char upload mode."""
     try:
         from core.hotkeys import HotkeyManager
         hk: HotkeyManager = state._hotkey_mgr
@@ -984,16 +850,7 @@ def _ob_char_unregister_arrows():
         pass
 
 
-# ---------------------------------------------------------------------------
-# Upload cycle (F6 handler)
-# ---------------------------------------------------------------------------
-
 def ob_upload_cycle():
-    """Cycle through upload modes: 0=off, 1=cryos, 2=tek+cryos, 3=character.
-
-    Called when the user presses the F6 hotkey.  If a run is in progress,
-    toggles pause instead.
-    """
     if state.pc_mode > 0 or state.pc_f10_step > 0:
         state.pc_f10_step = 0
         state.pc_mode = 0
@@ -1037,6 +894,7 @@ def ob_upload_cycle():
 
     elif state.ob_upload_mode == 3:
         state.ob_upload_armed = True
+        state.ob_char_timer_stage = 0
         if not state.svr_list:
             state.ob_char_custom_server = "2386"
         else:
@@ -1046,16 +904,34 @@ def ob_upload_cycle():
         _ob_char_register_arrows()
 
 
-# ---------------------------------------------------------------------------
-# F key handler
-# ---------------------------------------------------------------------------
+def _ob_wait_inv_close(reason: str):
+    mode_label = {1: "Cryos", 2: "Tek+Cryos", 3: "Upload Char"}.get(
+        state.ob_upload_mode, "Upload"
+    )
+    ob_set_status(f"{reason} — manage items, close inv when ready")
+    if state.ob_upload_mode == 3:
+        px, py = state.ob_char_trans_pix_x, state.ob_char_trans_pix_y
+    else:
+        px, py = state.ob_confirm_pix_x, state.ob_confirm_pix_y
+    _log(f"Polling pixel ({px},{py}) for inv close ({reason})")
+    timeout = 600
+    while state.ob_upload_armed and timeout > 0:
+        try:
+            inv_open = _nf_search_tol(px, py, px, py, 0xFFFFFF, 15)
+            if not inv_open:
+                _log("Inv closed detected — ready for F")
+                ob_set_status(f"Press F at transmitter ({mode_label})")
+                return
+        except Exception:
+            pass
+        _sleep(200)
+        timeout -= 1
+    if timeout <= 0:
+        _log("Inv close poll timed out (120s)")
+        ob_set_status(f"Press F at transmitter ({mode_label})")
+
 
 def ob_f_pressed():
-    """Handle the F key press to start the appropriate upload mode.
-
-    Must be called only when ``state.ob_upload_armed`` is True.
-    Spawns a background thread for the actual upload work.
-    """
     if not state.ob_upload_armed:
         return
 
@@ -1089,7 +965,7 @@ def ob_f_pressed():
                         state.ob_upload_running = True
                         state.ob_first_upload = (fi == 1)
                         skip_nav = fi > 1
-                        skip_clear = True  # never clear between filters; final clear at end
+                        skip_clear = True
                         ob_set_status(f"Cryos {fi}/{len(state.uf_list)} [{uf}]")
                         _log(f"[UF {fi}/{len(state.uf_list)}] filter='{uf}' skipNav={skip_nav}")
                         found = ob_run_upload(uf, f"Uploading {uf}", f"{uf} done",
@@ -1246,20 +1122,7 @@ def ob_f_pressed():
         t.start()
 
 
-# ---------------------------------------------------------------------------
-# Character upload
-# ---------------------------------------------------------------------------
-
 def ob_upload_character_thread():
-    """Multi-step character transfer sequence.
-
-    1. Wait for transmitter screen
-    2. Check upload timer
-    3. Click 'Travel to Another Server'
-    4. Wait for server browser
-    5. Search for target server
-    6. Click session and join
-    """
     wm = width_multiplier
     hm = height_multiplier
     state.ob_char_travel_x = round(1271 * wm)
@@ -1272,17 +1135,15 @@ def ob_upload_character_thread():
             _, _, state.game_width, state.game_height = win_get_pos(hwnd)
 
     server_num = _ob_char_target_server()
-    _log(f"Server: {server_num}  custom={state.ob_char_custom_server}  "
-         f"lastDest={state.ob_char_last_dest}")
+    _log(f"Server: {server_num}  custom={state.ob_char_custom_server}")
 
-    # ── Step 1: Wait for transmitter ──────────────────────────────────────
     ob_set_status("Waiting for transmitter...")
     wait_count = 0
     found = False
     while state.ob_upload_running and wait_count < 250:
         try:
-            if _nf_search_tol(state.ob_confirm_pix_x, state.ob_confirm_pix_y,
-                              state.ob_confirm_pix_x, state.ob_confirm_pix_y,
+            if _nf_search_tol(state.ob_char_trans_pix_x, state.ob_char_trans_pix_y,
+                              state.ob_char_trans_pix_x, state.ob_char_trans_pix_y,
                               0xFFFFFF, 15):
                 found = True
                 break
@@ -1299,13 +1160,91 @@ def ob_upload_character_thread():
         return
     _log(f"Transmitter detected after {wait_count * 16}ms")
 
-    # ── Step 2: Check upload timer ────────────────────────────────────────
-    if ob_check_upload_timer():
+    if state.ob_char_timer_stage == 0:
+        try:
+            scan_x = state.ob_ocr_x[4]
+            scan_y = state.ob_ocr_y[4]
+            scan_w = state.ob_ocr_w[4]
+            scan_h = state.ob_ocr_h[4]
+            t_ocr = from_rect(scan_x, scan_y, scan_w, scan_h, scale=2)
+            _log(f"Timer OCR ({scan_x},{scan_y} {scan_w}x{scan_h}): [{t_ocr[:200]}]")
+            max_sec = 0
+            for m in re.finditer(r"(\d{1,2}):(\d{2})", t_ocr):
+                mins = int(m.group(1))
+                secs = int(m.group(2))
+                if mins <= 15 and secs < 60:
+                    total = mins * 60 + secs
+                    if total > max_sec:
+                        max_sec = total
+            if max_sec > 0:
+                state.ob_char_timer_stage = 1
+                tm = max_sec // 60
+                ts = max_sec % 60
+                _log(f"Timer {tm}:{ts:02d} — closing transmitter, re-armed")
+                hwnd = _ark_hwnd()
+                if hwnd:
+                    control_send(hwnd, "{Escape}")
+                else:
+                    send("{Escape}")
+                _sleep(200)
+                mode_label = {1: "Cryos", 2: "Tek+Cryos", 3: "Upload Char"}.get(
+                    state.ob_upload_mode, "Upload"
+                )
+                state.ob_upload_running = False
+                state.ob_upload_armed = True
+                ob_set_status(f"Upload timer: {tm}:{ts:02d} — F to manage items ({mode_label})")
+                return
+        except Exception as e:
+            _log(f"Timer OCR failed: {e}")
+
+    elif state.ob_char_timer_stage == 1:
+        _log("Stage 1 — inv management, polling for inv close")
+        state.ob_char_timer_stage = 2
+        state.ob_upload_running = False
+        state.ob_upload_armed = True
+        threading.Thread(target=_ob_wait_inv_close, args=("Timer items",),
+                         daemon=True, name="ob_inv_wait").start()
         return
 
-    state.ob_char_last_dest = server_num
+    else:
+        _log("Stage 2 — re-checking timer before Travel")
+        try:
+            scan_x = state.ob_ocr_x[4]
+            scan_y = state.ob_ocr_y[4]
+            scan_w = state.ob_ocr_w[4]
+            scan_h = state.ob_ocr_h[4]
+            t_ocr = from_rect(scan_x, scan_y, scan_w, scan_h, scale=2)
+            _log(f"Re-check OCR: [{t_ocr[:200]}]")
+            max_sec = 0
+            for m in re.finditer(r"(\d{1,2}):(\d{2})", t_ocr):
+                mins = int(m.group(1))
+                secs = int(m.group(2))
+                if mins <= 15 and secs < 60:
+                    total = mins * 60 + secs
+                    if total > max_sec:
+                        max_sec = total
+            if max_sec > 0:
+                state.ob_char_timer_stage = 1
+                tm = max_sec // 60
+                ts = max_sec % 60
+                _log(f"Timer still active {tm}:{ts:02d} — back to stage 1")
+                hwnd = _ark_hwnd()
+                if hwnd:
+                    control_send(hwnd, "{Escape}")
+                else:
+                    send("{Escape}")
+                _sleep(200)
+                mode_label = {1: "Cryos", 2: "Tek+Cryos", 3: "Upload Char"}.get(
+                    state.ob_upload_mode, "Upload"
+                )
+                state.ob_upload_running = False
+                state.ob_upload_armed = True
+                ob_set_status(f"Timer {tm}:{ts:02d} still active — F to manage items ({mode_label})")
+                return
+            _log("No timer — proceeding to Travel")
+        except Exception as e:
+            _log(f"Re-check OCR failed: {e}")
 
-    # ── Step 3: Click Travel to Another Server ────────────────────────────
     ob_set_status("Clicking Travel to Another Server...")
     _sleep(200)
     set_cursor_pos(state.ob_char_travel_x, state.ob_char_travel_y)
@@ -1323,7 +1262,6 @@ def ob_upload_character_thread():
     obc_join_x = round(2180 * wm)
     obc_join_y = round(1189 * hm)
 
-    # ── Step 4: Wait for server browser ───────────────────────────────────
     ob_set_status("Waiting for server browser...")
     browser_found = False
     b_wait = 0
@@ -1350,7 +1288,6 @@ def ob_upload_character_thread():
     if not state.ob_upload_running:
         return
 
-    # ── Step 5: Search for server ─────────────────────────────────────────
     ob_set_status(f"Searching for server {server_num}...")
     _sleep(300)
     set_cursor_pos(obc_search_x, obc_search_y)
@@ -1361,7 +1298,7 @@ def ob_upload_character_thread():
     _sleep(50)
     send("{Delete}")
     _sleep(50)
-    send_text(server_num)
+    send_text_vk(server_num)
     _sleep(300)
     _log(f"Searched for: {server_num}")
 
@@ -1405,7 +1342,6 @@ def ob_upload_character_thread():
         return
     _sleep(200)
 
-    # ── Step 6: Click session ─────────────────────────────────────────────
     ob_set_status("Clicking session...")
     set_cursor_pos(obc_session_x, obc_session_y)
     _sleep(50)
@@ -1417,17 +1353,33 @@ def ob_upload_character_thread():
     _sleep(300)
     _log(f"Clicked session x2 ({obc_session_x},{obc_session_y})")
 
-    # ── Step 7: Join server ───────────────────────────────────────────────
     ob_set_status(f"Joining server {server_num}...")
     join_confirmed = False
+    items_blocked = False
     join_attempts = 0
 
-    while state.ob_upload_running and join_attempts < 10:
+    while state.ob_upload_running and join_attempts < 30:
         join_attempts += 1
         set_cursor_pos(obc_join_x, obc_join_y)
         _sleep(50)
         click()
-        _sleep(800)
+        _sleep(1000)
+
+        try:
+            j_text = from_rect(0, 0, state.game_width or 1920, state.game_height or 1080, scale=1)
+            j_lower = j_text.lower()
+
+            if "items not allowed" in j_lower or "not ready for upload" in j_lower or "can not be transferred" in j_lower:
+                items_blocked = True
+                _log(f"Items Not Allowed popup detected after {join_attempts} attempts: [{j_text[:200]}]")
+                break
+
+            if "joining" in j_lower:
+                join_confirmed = True
+                _log(f"Join confirmed by OCR after {join_attempts} attempts: [{j_text}]")
+                break
+        except Exception:
+            pass
 
         try:
             still_in_browser = _nf_search_tol(
@@ -1454,10 +1406,28 @@ def ob_upload_character_thread():
         else:
             _sleep(300)
 
-    if not join_confirmed:
-        _log(f"Join not confirmed after {join_attempts} attempts — proceeding anyway")
+    if items_blocked:
+        _log("Exiting transmitter (Esc x2)")
+        send("{Escape}")
+        _sleep(300)
+        send("{Escape}")
+        _sleep(300)
+        state.ob_upload_running = False
+        state.ob_upload_armed = True
+        state.ob_upload_mode = 3
+        state.ob_char_timer_stage = 1
+        ob_set_status("Items Not Allowed — F to manage items")
+        return
 
-    # ── Done ──────────────────────────────────────────────────────────────
+    if not join_confirmed:
+        _log(f"Join not confirmed after {join_attempts} attempts — re-arming")
+        state.ob_upload_running = False
+        state.ob_upload_armed = True
+        state.ob_upload_mode = 3
+        state.ob_char_timer_stage = 0
+        ob_set_status("Join failed — press F at transmitter to retry")
+        return
+
     state.ob_upload_running = False
     state.ob_upload_armed = False
     state.ob_upload_mode = 0

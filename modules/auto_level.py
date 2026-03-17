@@ -12,10 +12,6 @@ from input.window import win_exist, win_activate, get_foreground_window, control
 
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Scaled pixel-detection coordinates for each stat.
-# Base values (2560x1440) are multiplied at module import time.
-# ---------------------------------------------------------------------------
 _auto_lvl_health_pix_x = round(1075 * width_multiplier)
 _auto_lvl_health_pix_y = round(513 * height_multiplier)
 _auto_lvl_stam_pix_x = round(1066 * width_multiplier)
@@ -37,22 +33,15 @@ _food_btn_y = round(801 * height_multiplier)
 _weight_btn_y = round(845 * height_multiplier)
 _melee_btn_y = round(900 * height_multiplier)
 
-# Inventory-open detection pixel (white at top of dino inventory).
 _inv_detect_x = round(1632 * width_multiplier)
 _inv_detect_y = round(215 * height_multiplier)
 
-# Timeouts (ms)
 AUTO_LVL_STAT_TIMEOUT = 2000
-AUTO_LVL_INV_TIMEOUT = 250  # max poll iterations (~16 ms each)
+AUTO_LVL_INV_TIMEOUT = 250
 
-# Module thread reference
 _auto_lvl_thread: threading.Thread | None = None
 
-# ---------------------------------------------------------------------------
-# Stat descriptor table: (pixel_x, pixel_y, button_y, dict_key)
-# ---------------------------------------------------------------------------
 _STAT_TABLE_BASE = [
-    # (pix_x, pix_y, btn_y, key, affected_by_no_oxy)
     (_auto_lvl_health_pix_x, _auto_lvl_health_pix_y, _health_btn_y, "health", False),
     (_auto_lvl_stam_pix_x, _auto_lvl_stam_pix_y, _stam_btn_y, "stam", False),
     (_auto_lvl_oxy_pix_x, _auto_lvl_oxy_pix_y, _oxy_btn_y, "oxygen", False),
@@ -62,12 +51,7 @@ _STAT_TABLE_BASE = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Tooltip builder
-# ---------------------------------------------------------------------------
-
 def auto_lvl_build_tooltip() -> str:
-    """Build the tooltip string showing stat queue and current selection."""
     params = getattr(state, "_auto_lvl_params", None)
     if params is None:
         return " AutoLvL: No stats set"
@@ -94,22 +78,16 @@ def auto_lvl_build_tooltip() -> str:
         return f" AutoLvL (cycle mode):\n{stat_list}\n F = Level  |  Q = Next  |  F1 = Stop"
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
 def run_auto_lvl(stat_points: dict | None = None,
                  no_oxy: bool = False,
                  auto_saddle: bool = False,
                  cryo_after: bool = False,
                  combine: bool = True):
-    """Start auto-leveling in a background thread."""
     if stat_points is None:
         stat_points = {}
     state.run_auto_lvl_script = True
     state.gui_visible = False
 
-    # Build the stat queue for cycle mode (ordered list of stats with points > 0)
     stat_queue = []
     for key in ("health", "stam", "food", "weight", "melee"):
         n = stat_points.get(key, 0)
@@ -135,7 +113,6 @@ def run_auto_lvl(stat_points: dict | None = None,
 def _auto_lvl_thread_entry(stat_points: dict, no_oxy: bool,
                            auto_saddle: bool, cryo_after: bool,
                            combine: bool, stat_queue: list):
-    """Background entry — keeps the module armed until the user cancels."""
     state._auto_lvl_params = {
         "stat_points": stat_points,
         "no_oxy": no_oxy,
@@ -151,12 +128,7 @@ def _auto_lvl_thread_entry(stat_points: dict, no_oxy: bool,
     log.info("AutoLvL: stopped")
 
 
-# ---------------------------------------------------------------------------
-# Q-press callback: cycle to next stat in cycle mode
-# ---------------------------------------------------------------------------
-
 def auto_lvl_q_pressed():
-    """Cycle to the next stat in the queue (cycle mode only)."""
     params = getattr(state, "_auto_lvl_params", None)
     if params is None or params.get("combine", True):
         return
@@ -171,17 +143,11 @@ def auto_lvl_q_pressed():
 
     log.info("AutoLvL: cycled to %s", stat_queue[idx][0])
 
-    # Update tooltip
     from gui.tooltip import show_tooltip
     show_tooltip(auto_lvl_build_tooltip(), 0, 0)
 
 
-# ---------------------------------------------------------------------------
-# F-press callback (called by hotkey system when F is pressed at inventory)
-# ---------------------------------------------------------------------------
-
 def auto_lvl_f_pressed():
-    """Called when the user presses F with auto-level armed."""
     if not state.run_auto_lvl_script:
         return
 
@@ -198,7 +164,6 @@ def auto_lvl_f_pressed():
 
 
 def _auto_lvl_f_combine(params: dict):
-    """Combine mode: level all stats in one F press (original behavior)."""
     stat_points = params["stat_points"]
     no_oxy = params["no_oxy"]
     auto_saddle = params["auto_saddle"]
@@ -226,7 +191,6 @@ def _auto_lvl_f_combine(params: dict):
 
 
 def _auto_lvl_f_cycle(params: dict):
-    """Cycle mode: level only the current stat on F press."""
     stat_queue = params.get("stat_queue", [])
     stat_idx = params.get("stat_idx", 0)
     no_oxy = params["no_oxy"]
@@ -260,12 +224,7 @@ def _auto_lvl_f_cycle(params: dict):
     _auto_lvl_finish(auto_saddle, cryo_after)
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
 def _wait_for_inventory() -> bool:
-    """Wait for the dino inventory to open. Returns True if detected."""
     for _ in range(AUTO_LVL_INV_TIMEOUT):
         result = pixel_search(
             _inv_detect_x, _inv_detect_y,
@@ -280,7 +239,6 @@ def _wait_for_inventory() -> bool:
 
 
 def _close_inventory():
-    """Send Escape to close the inventory."""
     hwnd = win_exist(state.ark_window)
     if hwnd:
         control_send(hwnd, "{Esc}")
@@ -316,13 +274,8 @@ def _auto_lvl_finish(auto_saddle: bool, cryo_after: bool):
         click()
 
 
-# ---------------------------------------------------------------------------
-# Stat helpers
-# ---------------------------------------------------------------------------
-
 def auto_lvl_wait_stat_change(x: int, y: int, col_before: int,
                               timeout_ms: int = AUTO_LVL_STAT_TIMEOUT) -> bool:
-    """Poll a pixel until its color differs from *col_before*."""
     deadline = time.perf_counter() + timeout_ms / 1000.0
     while True:
         current = px_get(x, y)
@@ -334,7 +287,6 @@ def auto_lvl_wait_stat_change(x: int, y: int, col_before: int,
 
 
 def lvl_stat(count: int, x: int, y: int):
-    """Click (x, y) *count* times with no inter-click delay."""
     mouse_move(x, y, 0)
     click(count=count)
     # Brief settle so the game can process all the queued clicks

@@ -11,10 +11,6 @@ from input.window import win_exist, control_click
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-#  Tooltip helper
-# ---------------------------------------------------------------------------
-
 def _tooltip(text: str | None = None):
     try:
         from gui.tooltip import show_tooltip, hide_tooltip
@@ -35,12 +31,7 @@ def _restore_tooltip():
         pass
 
 
-# ---------------------------------------------------------------------------
-#  Inventory detection
-# ---------------------------------------------------------------------------
-
 def _wait_inv_open(max_ticks: int = 375) -> bool:
-    """Poll for the inventory-open white pixel (at 1495,226 scaled)."""
     x = int(round(1495 * state.width_multiplier))
     y = int(round(226 * state.height_multiplier))
     for _ in range(max_ticks):
@@ -51,15 +42,7 @@ def _wait_inv_open(max_ticks: int = 375) -> bool:
     return False
 
 
-# ---------------------------------------------------------------------------
-#  Core functions
-# ---------------------------------------------------------------------------
-
 def quick_feed_cycle():
-    """Cycle the quick-feed mode:  Off(0) -> Raw(1) -> Berry(2) -> Off(0).
-
-    Hides the GUI and activates ARK when first entering an armed mode.
-    """
     state.quick_feed_mode = (state.quick_feed_mode + 1) % 3
 
     if state.quick_feed_mode == 1:
@@ -86,7 +69,6 @@ def quick_feed_cycle():
 
 
 def quick_feed_stop():
-    """Disable quick-feed mode and restore the GUI."""
     state.quick_feed_mode = 0
     _tooltip(None)
     _restore_tooltip()
@@ -95,15 +77,6 @@ def quick_feed_stop():
 
 
 def quick_feed_f_pressed():
-    """Handle the F key while Quick Feed is active.
-
-    1. Wait for the dino inventory to be open.
-    2. Click the search bar in *my* inventory panel.
-    3. Type the filter ("raw" or "berry").
-    4. Click "Transfer All to Them".
-    5. Press Escape to close the inventory.
-    6. Re-display the armed tooltip.
-    """
     if state.quick_feed_mode == 0:
         return
 

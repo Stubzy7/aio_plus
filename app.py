@@ -424,9 +424,10 @@ class AIOApp:
         state.ac_timed_armed = False
         state.ac_grid_armed = False
         state.ac_running = False
-        if not state.ob_timer_counting:
-            state.ob_upload_armed = False
-            state.ob_upload_running = False
+        state.ob_timer_counting = False
+        state.ob_upload_armed = False
+        state.ob_upload_running = False
+        state.ob_char_timer_stage = 0
         state.ob_download_armed = False
         state.ob_download_running = False
         state.macro_armed = False

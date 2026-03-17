@@ -5,7 +5,6 @@ from pal import gui_helpers as _gui
 
 
 class TooltipManager:
-    """Manage floating tooltip windows."""
 
     def __init__(self, root: tk.Tk):
         self.root = root
@@ -13,10 +12,6 @@ class TooltipManager:
 
     def show(self, text: str, x: int | None = None, y: int | None = None,
              tooltip_id: int = 1):
-        """Show a tooltip at screen coordinates.
-
-        If x/y are None, shows near the cursor.
-        """
         self.hide(tooltip_id)
 
         if not text:
@@ -30,7 +25,6 @@ class TooltipManager:
         label = tk.Label(tip, text=text, bg=BG_DARK, fg=FG_COLOR,
                          font=FONT_DEFAULT, justify=tk.LEFT, padx=6, pady=6)
         label.pack()
-        # Force geometry update so the window sizes to fit all text
         tip.update_idletasks()
 
         # Prevent tooltip from stealing focus from fullscreen apps
@@ -48,7 +42,6 @@ class TooltipManager:
         self._tooltips[tooltip_id] = tip
 
     def hide(self, tooltip_id: int = 1):
-        """Hide and destroy a tooltip by ID."""
         tip = self._tooltips.pop(tooltip_id, None)
         if tip:
             try:
@@ -57,23 +50,17 @@ class TooltipManager:
                 pass
 
     def hide_all(self):
-        """Hide all tooltips."""
         for tid in list(self._tooltips.keys()):
             self.hide(tid)
 
     def temp(self, text: str, duration_ms: int = 2000,
              x: int | None = None, y: int | None = None,
              tooltip_id: int = 1):
-        """Show a tooltip that auto-hides after duration_ms."""
         self.show(text, x, y, tooltip_id)
         self.root.after(duration_ms, lambda: self.hide(tooltip_id))
 
     def update_text(self, text: str, tooltip_id: int = 1,
                     x: int = 0, y: int = 0):
-        """Update the text of an existing tooltip without destroy/recreate.
-
-        Falls back to show() at (x, y) if no tooltip exists yet.
-        """
         tip = self._tooltips.get(tooltip_id)
         if tip:
             for child in tip.winfo_children():
@@ -84,18 +71,9 @@ class TooltipManager:
             self.show(text, x, y, tooltip_id)
 
 
-# ---------------------------------------------------------------------------
-#  Module-level convenience functions
-# ---------------------------------------------------------------------------
-# Many modules do ``from gui.tooltip import show_tooltip, hide_tooltip``.
-# These delegate to the singleton TooltipManager stored on state.
 
 def show_tooltip(text: str, x: int = 0, y: int = 0,
                  tooltip_id: int = 1):
-    """Show a tooltip via the global TooltipManager.
-
-    Default position is (0, 0) — top-left of screen.
-    """
     from core.state import state
     root = getattr(state, "root", None)
     if root is None:
@@ -109,7 +87,6 @@ def show_tooltip(text: str, x: int = 0, y: int = 0,
 
 def update_tooltip(text: str, tooltip_id: int = 1,
                    x: int = 0, y: int = 0):
-    """Update text of an existing tooltip (no destroy/recreate). Falls back to show at (x,y)."""
     from core.state import state
     root = getattr(state, "root", None)
     if root is None:
@@ -121,7 +98,6 @@ def update_tooltip(text: str, tooltip_id: int = 1,
 
 
 def hide_tooltip(tooltip_id: int = 1):
-    """Hide a tooltip via the global TooltipManager."""
     from core.state import state
     root = getattr(state, "root", None)
     if root is None:
@@ -134,7 +110,6 @@ def hide_tooltip(tooltip_id: int = 1):
 
 def temp_tooltip(text: str, duration_ms: int = 2000,
                  x: int = 0, y: int = 0, tooltip_id: int = 1):
-    """Show a tooltip that auto-hides after duration_ms."""
     from core.state import state
     root = getattr(state, "root", None)
     if root is None:

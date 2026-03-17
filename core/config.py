@@ -5,12 +5,10 @@ import os
 
 
 def _ini_path() -> str:
-    """Return path to AIO_config.ini next to the script/exe."""
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "AIO_config.ini")
 
 
 def _read_parser(path: str | None = None) -> configparser.ConfigParser:
-    """Read the INI file, handling potential UTF-16LE encoding."""
     path = path or _ini_path()
     cp = configparser.ConfigParser(interpolation=None)
     if not os.path.exists(path):
@@ -31,14 +29,12 @@ def _read_parser(path: str | None = None) -> configparser.ConfigParser:
 
 
 def _write_parser(cp: configparser.ConfigParser, path: str | None = None):
-    """Write the INI file in UTF-8 (standard for new installs)."""
     path = path or _ini_path()
     with open(path, "w", encoding="utf-8") as f:
         cp.write(f)
 
 
 def read_ini(section: str, key: str, default: str = "Default") -> str:
-    """Read a single value from the INI file."""
     cp = _read_parser()
     try:
         return cp.get(section, key)
@@ -47,7 +43,6 @@ def read_ini(section: str, key: str, default: str = "Default") -> str:
 
 
 def write_ini(section: str, key: str, value: str):
-    """Write a single value to the INI file."""
     path = _ini_path()
     cp = _read_parser(path)
     if not cp.has_section(section):
@@ -57,7 +52,6 @@ def write_ini(section: str, key: str, value: str):
 
 
 def read_ini_int(section: str, key: str, default: int = 0) -> int:
-    """Read an integer from the INI file."""
     val = read_ini(section, key, str(default))
     try:
         return int(val)
@@ -66,13 +60,11 @@ def read_ini_int(section: str, key: str, default: int = 0) -> int:
 
 
 def read_ini_bool(section: str, key: str, default: bool = False) -> bool:
-    """Read a boolean from the INI file (1/0, true/false)."""
     val = read_ini(section, key, str(int(default)))
     return val.lower() in ("1", "true", "yes")
 
 
 def ensure_defaults():
-    """Preload default timing values for new users."""
     path = _ini_path()
     cp = _read_parser(path)
     changed = False
@@ -93,16 +85,6 @@ def ensure_defaults():
 
 
 def ini_detect_command_key(entry_widget, root=None):
-    """Detect a key press and write it into *entry_widget*.
-
-    Binds a temporary
-    ``<Key>`` handler on the entry widget, waits for a non-modifier key,
-    formats it as ``{key}``, and inserts it into the widget.
-
-    Args:
-        entry_widget: A tkinter Entry or similar widget to receive the key.
-        root: Optional tkinter root for tooltip display.
-    """
     import tkinter as tk
 
     _EXCLUDED = {
@@ -126,7 +108,6 @@ def ini_detect_command_key(entry_widget, root=None):
 
 
 def list_load(section: str) -> list[str]:
-    """Load a list stored as Count + Item_1, Item_2, ... in the INI."""
     cp = _read_parser()
     if not cp.has_section(section):
         return []
@@ -143,7 +124,6 @@ def list_load(section: str) -> list[str]:
 
 
 def list_save(section: str, items: list[str]):
-    """Save a list as Count + Item_1, Item_2, ... in the INI."""
     path = _ini_path()
     cp = _read_parser(path)
     if cp.has_section(section):

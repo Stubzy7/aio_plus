@@ -8,25 +8,21 @@ from core.scaling import (
 
 
 class AppState:
-    """Central state container for the entire application."""
 
     def __init__(self):
         self.lock = threading.Lock()
 
-        # ── Resolution ───────────────────────────────────────────────
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.width_multiplier = width_multiplier
         self.height_multiplier = height_multiplier
 
-        # ── AIO general ──────────────────────────────────────────────
         self.ark_running = False
         self.gui_visible = True
         self.ark_window = "ArkAscended"
         self.game_width = 0
         self.game_height = 0
 
-        # ── Magic F ──────────────────────────────────────────────────
         self.run_magic_f_script = False
         self.magic_f_refill_mode = False
         self.magic_f_preset_names: list[str] = []
@@ -39,28 +35,21 @@ class AppState:
         self.mf_give_filter_list: list[str] = []
         self.mf_take_filter_list: list[str] = []
 
-        # ── Auto Level ───────────────────────────────────────────────
         self.run_auto_lvl_script = False
         self.auto_lvl_cryo_check = ""
 
-        # ── Claim & Name ─────────────────────────────────────────────
         self.run_claim_and_name_script = False
 
-        # ── Mammoth ──────────────────────────────────────────────────
         self.run_mammoth_script = False
 
-        # ── Quick Feed ───────────────────────────────────────────────
         self.quick_feed_mode = 0
 
-        # ── Performance Log ──────────────────────────────────────────
         self.perf_log: list = []
 
-        # ── Server list ──────────────────────────────────────────────
         self.svr_list: list[str] = []
         self.svr_notes: dict[str, str] = {}  # server_num -> note text
         self.svr_note_gui = None
 
-        # ── Filter lists ─────────────────────────────────────────────
         self.uf_list: list[str] = []
         self.cn_name_list: list[str] = []
         self.ac_simple_filter_list: list[str] = []
@@ -68,7 +57,6 @@ class AppState:
         self.ac_grid_filter_list: list[str] = []
         self.pc_custom_filter_list: list[str] = []
 
-        # ── Overcap ──────────────────────────────────────────────────
         self.run_overcap_script = False
         self.overcap_dedi_target = 0
         self.overcap_start_tick = 0
@@ -78,13 +66,11 @@ class AppState:
             5: 77000, 6: 98000, 7: 119000, 8: 140000, 9: 161000,
         }
 
-        # ── Autoclicker ─────────────────────────────────────────────
         self.autoclicking = False
         self.autoclick_interval = 750
         self.autoclick_interval_step = 100
         self.autoclick_min_interval = 50
 
-        # ── Quick Hatch ──────────────────────────────────────────────
         self.qh_mode = 0
         self.qh_armed = False
         self.qh_running = False
@@ -111,7 +97,6 @@ class AppState:
         self.qh_egg_slot_x = [scale_x(v) for v in [1488, 1439, 1385, 1336, 1281, 1235, 1180, 1133, 1080, 1032]]
         self.qh_egg_slot_y = [scale_y(v) for v in [732, 733, 732, 733, 732, 732, 733, 732, 733, 733]]
 
-        # ── Auto Imprint ─────────────────────────────────────────────
         self.imprint_scanning = False
         self.imprint_auto_mode = False
         self.imprint_inventory_key = ""
@@ -139,7 +124,6 @@ class AppState:
             "Cooked Meat", "Kibble",
         ]
 
-        # ── Name/Spay ───────────────────────────────────────────────
         self.run_name_and_spay_script = False
         self.ns_log_entries: list = []
         self.ns_help_gui = None
@@ -157,11 +141,9 @@ class AppState:
         self.ns_admin_spay_x = scale_x(1017)
         self.ns_admin_spay_y = scale_y(780)
 
-        # ── Drum pixel ───────────────────────────────────────────────
         self.drum_pixel_x = round(screen_width * (815 / 1920))
         self.drum_pixel_y = round(screen_height * (920 / 1080))
 
-        # ── Inventory coordinates ────────────────────────────────────
         self.transfer_to_me_btn_x = scale_x(1917)
         self.transfer_to_me_btn_y = scale_y(264)
         self.transfer_to_other_btn_x = scale_x(550)
@@ -179,7 +161,6 @@ class AppState:
         self.their_inv_drop_all_btn_x = scale_x(1989)
         self.their_inv_drop_all_btn_y = scale_y(260)
 
-        # ── OB Upload ────────────────────────────────────────────────
         self.ob_log: list = []
         self.ob_upload_mode = 0
         self.ob_upload_armed = False
@@ -193,6 +174,8 @@ class AppState:
         self.ob_inv_pix_y = scale_y(181)
         self.ob_confirm_pix_x = scale_x(1479)
         self.ob_confirm_pix_y = scale_y(228)
+        self.ob_char_trans_pix_x = scale_x(1425)
+        self.ob_char_trans_pix_y = scale_y(225)
         self.ob_my_slot1_x = scale_x(300)
         self.ob_my_slot1_y = scale_y(370)
         self.ob_empty_check_x = scale_x(300)
@@ -254,14 +237,12 @@ class AppState:
         self.ob_active_filter = ""
         self.ob_inv_timeout = 250
 
-        # ── OB Upload Character ──────────────────────────────────────
         self.ob_char_travel_x = 0
         self.ob_char_travel_y = 0
         self.ob_char_custom_server = ""
-        self.ob_char_last_dest = ""
+        self.ob_char_timer_stage = 0
         self.ob_char_svr_idx = 0
 
-        # ── OB Download ──────────────────────────────────────────────
         self.ob_download_armed = False
         self.ob_download_running = False
         self.ob_download_paused = False
@@ -279,7 +260,6 @@ class AppState:
         self.ob_down_item_delay_max = 3000
         self.ob_down_bar_settle_ms = 12000
 
-        # ── OB OCR Regions ───────────────────────────────────────────
         self.ob_ocr_resizing = False
         self.ob_ocr_target = 0
         self.ob_ocr_overlays = None
@@ -288,10 +268,8 @@ class AppState:
         self.ob_ocr_w = [scale_x(v) for v in [80, 640, 150, 640, 624]]
         self.ob_ocr_h = [scale_y(v) for v in [40, 60, 40, 60, 803]]
 
-        # ── NVIDIA Filter ────────────────────────────────────────────
         self.nf_enabled = False
 
-        # ── Auto Pin ─────────────────────────────────────────────────
         self.pin_auto_open = True
         self.pin_log: list = []
         self.pin_poll_count = 0
@@ -313,13 +291,10 @@ class AppState:
         self.pin_click_x = scale_x(1275)
         self.pin_click_y = scale_y(999)
 
-        # ── Grab My Kit ──────────────────────────────────────────────
         self.gmk_mode = "off"
 
-        # ── NTFY ─────────────────────────────────────────────────────
         self.ntfy_key = ""
 
-        # ── INI commands ─────────────────────────────────────────────
         self.ini_command_key = "{vkC0}"
         self.ini_custom_command = ""
         self.ini_default_command = (
@@ -350,7 +325,6 @@ class AppState:
             "Slate.Contrast 1 | sg.ReflectionQuality 0"
         )
 
-        # ── Sheep globals ────────────────────────────────────────────
         self.black_box_x = scale_x(2319)
         self.black_box_y = scale_y(1372)
         self.overcap_box_x = scale_x(2201)
@@ -379,7 +353,6 @@ class AppState:
         self.sheep_level_action_key = "z"
         self.sheep_tab_active = False
 
-        # ── Popcorn ──────────────────────────────────────────────────
         self.pc_mode = 0
         self.pc_inv_key = "f"
         self.pc_drop_key = ""
@@ -446,7 +419,6 @@ class AppState:
         self.pc_f10_step = 0
         self.pc_log_entries: list = []
 
-        # ── Auto Craft ───────────────────────────────────────────────
         self.ac_running = False
         self.ac_early_exit = False
         self.ac_preset_names: list[str] = []
@@ -499,7 +471,6 @@ class AppState:
         self.ac_ocr_snap_w = 250
         self.ac_ocr_snap_h = 35
 
-        # ── Macro System ─────────────────────────────────────────────
         self.macro_list: list = []
         self.macro_recording = False
         self.macro_playing = False
@@ -524,7 +495,6 @@ class AppState:
         self.me_key_list: list = []
         self.macro_edit_gui = None
 
-        # ── Guided Macro ─────────────────────────────────────────────
         self.guided_wiz_gui = None
         self.guided_wiz_step = 0
         self.guided_inv_type = "storage"
@@ -548,7 +518,6 @@ class AppState:
         self.guided_inv_ready_color = 0x79F4FD
         self.guided_inv_ready_tol = 25
 
-        # ── Combo Macro ──────────────────────────────────────────────
         self.combo_wiz_gui = None
         self.combo_running = False
         self.combo_mode = 0
@@ -559,7 +528,6 @@ class AppState:
         self.combo_take_count = 0
         self.combo_take_filter = ""
 
-        # ── Pyro coordinates ─────────────────────────────────────────
         self.pyro_ast_tek_det_x = scale_x(923)
         self.pyro_ast_tek_det_y = scale_y(717)
         self.pyro_ast_tek_clk_x = scale_x(1088)
@@ -585,7 +553,6 @@ class AppState:
         self.pyro_dismount_x = scale_x(1165)
         self.pyro_dismount_y = scale_y(1177)
 
-        # ── JoinSim ──────────────────────────────────────────────────
         self.game_window = "ArkAscended"
         self.sim_cycle_status = "Idle"
         self.incounter = 0
@@ -611,7 +578,6 @@ class AppState:
         self.sim_last_colors = ""
         self.sim_cycle_count = 0
 
-        # ── GUI references (set after GUI is built) ──────────────────
         self.main_gui = None
         self.root = None  # tkinter Tk instance
 

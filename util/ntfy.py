@@ -9,7 +9,6 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
-# Map priority names to ntfy.sh values
 _PRIORITY_MAP = {
     "min": "min", "low": "low", "default": "default",
     "high": "high", "max": "max", "urgent": "urgent",
@@ -17,13 +16,6 @@ _PRIORITY_MAP = {
 
 
 def ntfy_push(priority: str, message: str, key: str = ""):
-    """Send a push notification via ntfy.sh.
-
-    Args:
-        priority: Notification priority ("low", "default", "high", "max", "urgent").
-        message: The notification body text.
-        key: The ntfy topic key. If empty, does nothing.
-    """
     if not key:
         log.debug("ntfy_push: no key set, skipping")
         return

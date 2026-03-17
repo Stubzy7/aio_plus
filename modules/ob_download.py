@@ -15,37 +15,27 @@ from util.color import color_r, color_g, color_b
 from modules.nvidia_filter import nft as _nft
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _per_channel_match(c1: int, c2: int, tol: int) -> bool:
-    """Per-channel tolerance check (each channel must be within tol)."""
     return (abs(color_r(c1) - color_r(c2)) <= tol
             and abs(color_g(c1) - color_g(c2)) <= tol
             and abs(color_b(c1) - color_b(c2)) <= tol)
 
 
 def _nf_search_tol(x1, y1, x2, y2, color, tol):
-    """Single-pixel color check within per-channel tolerance."""
     c = px_get(x1, y1)
     return _per_channel_match(c, color, tol)
 
 
 def _nf_pixel_wait(x, y, color, tol):
-    """Single-sample pixel color check (per-channel tolerance)."""
     c = px_get(x, y)
     return _per_channel_match(c, color, tol)
 
 
 def _nf_color_bright(c, threshold):
-    """True if all channels exceed *threshold*."""
     return color_r(c) > threshold and color_g(c) > threshold and color_b(c) > threshold
 
 
 def _ark_hwnd():
-    """Return the HWND of the ARK window."""
     return win_exist(state.ark_window)
 
 
@@ -61,19 +51,13 @@ def _log(msg):
     state.ob_log.append(msg)
 
 
-# ---------------------------------------------------------------------------
-# Overlay / inventory helpers (duplicated from ob_upload for independence)
-# ---------------------------------------------------------------------------
-
 def _ob_overlay_clear() -> bool:
-    """Check whether the 'Refreshing Inventory' overlay has cleared."""
     col = px_get(state.ob_ov_pix_x, state.ob_ov_pix_y)
     r = color_r(col)
     return r > _nft(180, 1)
 
 
 def _ob_check_inv_failed() -> bool:
-    """Detect and dismiss the 'Refreshing Inventory Failed' popup."""
     col = px_get(state.ob_inv_fail_btn_x, state.ob_inv_fail_btn_y)
     if _nf_color_bright(col, 220):
         hwnd = _ark_hwnd()
@@ -85,7 +69,6 @@ def _ob_check_inv_failed() -> bool:
 
 
 def _ob_tooltip_off():
-    """Disable in-game tooltips checkbox, tracking prior state."""
     col = px_get(state.ob_tooltip_pix_x, state.ob_tooltip_pix_y)
     g = color_g(col)
     b = color_b(col)
@@ -104,7 +87,6 @@ def _ob_tooltip_off():
 
 
 def _ob_tooltip_restore():
-    """Restore in-game tooltips if they were on."""
     if state.ob_tooltips_were_on:
         _log("[TOOLTIP] restoring ON")
         hwnd = _ark_hwnd()
@@ -114,12 +96,7 @@ def _ob_tooltip_restore():
         state.ob_tooltips_were_on = False
 
 
-# ---------------------------------------------------------------------------
-# Status / stop
-# ---------------------------------------------------------------------------
-
 def ob_down_set_status(msg: str):
-    """Update the OB download status text + Tab 1 label + floating tooltip."""
     state.ob_down_text = msg
     try:
         from gui.tab_joinsim import update_ob_down_status
@@ -137,7 +114,6 @@ def ob_down_set_status(msg: str):
 
 
 def ob_down_stop_all(hide_gui: bool = True):
-    """Reset all OB download state flags and clear tooltip."""
     state.ob_download_armed = False
     state.ob_download_running = False
     state.ob_download_paused = False
@@ -147,7 +123,6 @@ def ob_down_stop_all(hide_gui: bool = True):
 
 
 def _clear_status_after(ms: int = 2000):
-    """Show current status briefly, then clear tooltip and restore GUI."""
     from core.timers import timers
 
     def _clear():
@@ -160,22 +135,13 @@ def _clear_status_after(ms: int = 2000):
     timers.set_timer("ob_down_clear_tip", _clear, -ms)
 
 
-# ---------------------------------------------------------------------------
-# Item counting
-# ---------------------------------------------------------------------------
-
 def ob_bar_count_items() -> int:
-    """Count items in the OB by scanning the cyan progress bar pixel by pixel.
-
-    Scans from slot 50 down to 0; the first slot with a cyan pixel indicates
-    the item count.  Returns 0..50.
-    """
     base_start = 1025
     base_per_slot = 10.04
     scan_y = state.ob_bar_pix_y
 
     for inverse_slot in range(51):
-        slot = 50 - inverse_slot  # 50, 49, ... 0
+        slot = 50 - inverse_slot
         check_x = round((base_start + slot * base_per_slot) * width_multiplier)
         try:
             col = px_get(check_x, scan_y)
@@ -190,10 +156,6 @@ def ob_bar_count_items() -> int:
 
 
 def ob_ocr_download_count() -> int:
-    """Parse the 'X/50' item count from the OB screen via OCR.
-
-    Returns the number before the slash, or -1 on failure.
-    """
     try:
         txt = from_rect(state.ob_ocr_x[2], state.ob_ocr_y[2],
                         state.ob_ocr_w[2], state.ob_ocr_h[2], scale=3)
@@ -207,15 +169,7 @@ def ob_ocr_download_count() -> int:
         return -1
 
 
-# ---------------------------------------------------------------------------
-# Download cycle (F7 handler)
-# ---------------------------------------------------------------------------
-
 def ob_download_cycle():
-    """Start or stop the OB download mode.
-
-    Called when the user presses the F7 hotkey.
-    """
     if state.pc_mode > 0 or state.pc_f10_step > 0:
         state.pc_f10_step = 0
         state.pc_mode = 0
@@ -249,7 +203,6 @@ def ob_download_cycle():
 
 
 def ob_down_f_pressed():
-    """Handle the F7 trigger when download is armed."""
     if not state.ob_download_armed:
         return
     state.ob_download_armed = False
@@ -261,14 +214,7 @@ def ob_down_f_pressed():
     t.start()
 
 
-# ---------------------------------------------------------------------------
-# Main download loop
-# ---------------------------------------------------------------------------
-
 def ob_run_download():
-    """Main download loop: navigate to upload tab, then repeatedly transfer
-    items from the OB into the player's inventory until empty.
-    """
     hwnd = _ark_hwnd()
     nav_start_time = _tick()
 
@@ -568,16 +514,7 @@ def ob_run_download():
     ob_down_stop_all()
 
 
-# ---------------------------------------------------------------------------
-#  OCR Resize System
-# ---------------------------------------------------------------------------
-
 def ob_ocr_toggle_resize(idx: int):
-    """Toggle OCR region resize mode for the given region index.
-
-    idx: 3 = Download Count, 5 = Timer
-    Enters or exits resize mode with hotkey bindings.
-    """
     if state.ob_ocr_resizing:
         ob_ocr_exit_resize()
         return
@@ -599,7 +536,6 @@ def ob_ocr_toggle_resize(idx: int):
 
 
 def ob_ocr_exit_resize():
-    """Exit OCR resize mode, save config, hide overlay."""
     state.ob_ocr_resizing = False
     ob_ocr_hide_overlay()
     ob_ocr_save_config()
@@ -609,12 +545,10 @@ def ob_ocr_exit_resize():
 
 
 def ob_ocr_resize_done():
-    """Enter key handler — calls exit_resize."""
     ob_ocr_exit_resize()
 
 
 def ob_ocr_size_up():
-    """Increase scan height by 10px."""
     i = state.ob_ocr_target
     state.ob_ocr_h[i] = max(20, state.ob_ocr_h[i] + 10)
     ob_ocr_show_overlay()
@@ -622,7 +556,6 @@ def ob_ocr_size_up():
 
 
 def ob_ocr_size_down():
-    """Decrease scan height by 10px."""
     i = state.ob_ocr_target
     state.ob_ocr_h[i] = max(20, state.ob_ocr_h[i] - 10)
     ob_ocr_show_overlay()
@@ -630,7 +563,6 @@ def ob_ocr_size_down():
 
 
 def ob_ocr_size_right():
-    """Increase scan width by 20px."""
     i = state.ob_ocr_target
     state.ob_ocr_w[i] = max(40, state.ob_ocr_w[i] + 20)
     ob_ocr_show_overlay()
@@ -638,7 +570,6 @@ def ob_ocr_size_right():
 
 
 def ob_ocr_size_left():
-    """Decrease scan width by 20px."""
     i = state.ob_ocr_target
     state.ob_ocr_w[i] = max(40, state.ob_ocr_w[i] - 20)
     ob_ocr_show_overlay()
@@ -646,14 +577,12 @@ def ob_ocr_size_left():
 
 
 def ob_ocr_move_up():
-    """Move scan area up by 10px."""
     i = state.ob_ocr_target
     state.ob_ocr_y[i] = max(0, state.ob_ocr_y[i] - 10)
     ob_ocr_show_overlay()
 
 
 def ob_ocr_move_down():
-    """Move scan area down by 10px."""
     from core.scaling import screen_height
     i = state.ob_ocr_target
     state.ob_ocr_y[i] = min(screen_height - state.ob_ocr_h[i], state.ob_ocr_y[i] + 10)
@@ -661,14 +590,12 @@ def ob_ocr_move_down():
 
 
 def ob_ocr_move_left():
-    """Move scan area left by 10px."""
     i = state.ob_ocr_target
     state.ob_ocr_x[i] = max(0, state.ob_ocr_x[i] - 10)
     ob_ocr_show_overlay()
 
 
 def ob_ocr_move_right():
-    """Move scan area right by 10px."""
     from core.scaling import screen_width
     i = state.ob_ocr_target
     state.ob_ocr_x[i] = min(screen_width - state.ob_ocr_w[i], state.ob_ocr_x[i] + 10)
@@ -676,14 +603,12 @@ def ob_ocr_move_right():
 
 
 def ob_ocr_update_size_txt():
-    """Log current dimensions (no button to update in OB Download)."""
     i = state.ob_ocr_target
     _log(f"[OCR-RESIZE] region {i}: {state.ob_ocr_w[i]}x{state.ob_ocr_h[i]} "
          f"at ({state.ob_ocr_x[i]},{state.ob_ocr_y[i]})")
 
 
 def ob_ocr_show_overlay():
-    """Draw a cyan border around the current OCR region."""
     ob_ocr_hide_overlay()
     try:
         from gui.overlay import show_rect_overlay
@@ -699,7 +624,6 @@ def ob_ocr_show_overlay():
 
 
 def ob_ocr_hide_overlay():
-    """Destroy the OCR scan area overlay."""
     if state.ob_ocr_overlays is not None:
         try:
             from gui.overlay import hide_rect_overlay
@@ -710,7 +634,6 @@ def ob_ocr_hide_overlay():
 
 
 def _ob_tooltip(text: str | None):
-    """Show/hide tooltip."""
     try:
         if text:
             from gui.tooltip import show_tooltip
@@ -722,16 +645,7 @@ def _ob_tooltip(text: str | None):
         pass
 
 
-# ---------------------------------------------------------------------------
-#  OCR Config — INI persistence with resolution de-scaling
-# ---------------------------------------------------------------------------
-
 def ob_ocr_save_config():
-    """Save OCR regions to INI, de-scaled by resolution multiplier.
-
-    Index 2 = Download Count -> section [OBDnCount]
-    Index 4 = Timer          -> section [OBTimer]
-    """
     from core.config import write_ini
     wm = width_multiplier or 1
     hm = height_multiplier or 1
@@ -746,7 +660,6 @@ def ob_ocr_save_config():
 
 
 def ob_ocr_load_config():
-    """Load OCR regions from INI, scaled to current resolution."""
     from core.config import read_ini
     wm = width_multiplier or 1
     hm = height_multiplier or 1
@@ -784,15 +697,7 @@ def ob_ocr_load_config():
                 pass
 
 
-# ---------------------------------------------------------------------------
-#  OCR Detection — uses configurable scan regions
-# ---------------------------------------------------------------------------
-
 def ob_ocr_slot_has_items() -> bool:
-    """OCR region 1 (Upload Slot) to check if items are present.
-
-    Reads text at 3x scale, checks for digits.
-    """
     try:
         text = from_rect(state.ob_ocr_x[0], state.ob_ocr_y[0],
                          state.ob_ocr_w[0], state.ob_ocr_h[0], scale=3)
@@ -805,10 +710,6 @@ def ob_ocr_slot_has_items() -> bool:
 
 
 def ob_ocr_upload_busy() -> bool:
-    """OCR region 2 (Upload Popup) to detect upload/refresh popup.
-
-    Checks for "upload" or "refresh" text in the OCR region.
-    """
     try:
         text = from_rect(state.ob_ocr_x[1], state.ob_ocr_y[1],
                          state.ob_ocr_w[1], state.ob_ocr_h[1], scale=2)
@@ -821,10 +722,6 @@ def ob_ocr_upload_busy() -> bool:
 
 
 def ob_ocr_download_count() -> int:
-    """OCR region 3 (Download Count) to read item count ("X / Y" format).
-
-    Returns the numerator, or -1 on failure.
-    """
     try:
         text = from_rect(state.ob_ocr_x[2], state.ob_ocr_y[2],
                          state.ob_ocr_w[2], state.ob_ocr_h[2], scale=3)
@@ -840,10 +737,6 @@ def ob_ocr_download_count() -> int:
 
 
 def ob_ocr_download_busy() -> bool:
-    """OCR region 4 (Download Popup) to detect download popup.
-
-    Checks for "download" text in the OCR region.
-    """
     try:
         text = from_rect(state.ob_ocr_x[3], state.ob_ocr_y[3],
                          state.ob_ocr_w[3], state.ob_ocr_h[3], scale=2)
@@ -855,10 +748,6 @@ def ob_ocr_download_busy() -> bool:
 
 
 def ob_ocr_wait_popup_clear(max_ms: int = 45000) -> bool:
-    """Wait for upload popup to clear (poll OBOcrUploadBusy every 100ms).
-
-    Polls OBOcrUploadBusy every 100ms until clear or timeout.
-    """
     start = _tick()
     polls = 0
     deadline = max_ms
@@ -875,10 +764,6 @@ def ob_ocr_wait_popup_clear(max_ms: int = 45000) -> bool:
 
 
 def ob_ocr_wait_dn_popup_clear(max_ms: int = 30000) -> bool:
-    """Wait for download popup to clear (poll OBOcrDownloadBusy every 100ms).
-
-    Polls OBOcrDownloadBusy every 100ms until clear or timeout.
-    """
     start = _tick()
     polls = 0
     deadline = max_ms

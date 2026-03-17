@@ -11,10 +11,6 @@ from input.window import win_exist, control_click
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-#  Tooltip helper
-# ---------------------------------------------------------------------------
-
 def _tooltip(text: str | None = None):
     try:
         from gui.tooltip import show_tooltip, hide_tooltip
@@ -43,12 +39,7 @@ def _restore_tooltip():
         pass
 
 
-# ---------------------------------------------------------------------------
-#  Inventory detection (shared white-pixel check)
-# ---------------------------------------------------------------------------
-
 def _inv_open_white() -> bool:
-    """Return True if the inventory 'open' white pixel is detected."""
     x = int(round(1495 * state.width_multiplier))
     y = int(round(226 * state.height_multiplier))
     result = pixel_search(x, y, x + 2, y + 2, 0xFFFFFF, tolerance=0)
@@ -56,7 +47,6 @@ def _inv_open_white() -> bool:
 
 
 def _wait_inv_open(max_ticks: int = 375) -> bool:
-    """Poll at 16 ms until the inventory open pixel appears, or timeout."""
     for _ in range(max_ticks):
         if _inv_open_white():
             return True
@@ -64,20 +54,7 @@ def _wait_inv_open(max_ticks: int = 375) -> bool:
     return False
 
 
-# ---------------------------------------------------------------------------
-#  Core functions
-# ---------------------------------------------------------------------------
-
 def gmk_toggle():
-    """Cycle the Grab My Kit mode:  off -> take -> give -> off.
-
-    When entering take/give:
-      - Disables conflicting modules (Magic F, Quick Feed, Popcorn, macros).
-      - Updates the GUI status text.
-      - Hides the main GUI so the game is unobstructed.
-    When returning to off:
-      - Clears the tooltip after a short delay.
-    """
     if state.gmk_mode == "off":
         state.gmk_mode = "take"
     elif state.gmk_mode == "take":
@@ -86,7 +63,6 @@ def gmk_toggle():
         state.gmk_mode = "off"
 
     if state.gmk_mode != "off":
-        # Disable conflicting modules
         if state.run_magic_f_script:
             state.run_magic_f_script = False
         if state.quick_feed_mode > 0:
@@ -124,7 +100,6 @@ def gmk_toggle():
 
 
 def gmk_build_tooltip() -> str:
-    """Build the tooltip string for the current GMK mode."""
     label = "TAKE" if state.gmk_mode == "take" else "GIVE"
     action = "F = Take All" if state.gmk_mode == "take" else "F = Give All"
     return f" Grab My Kit: {label}\n{action}  |  F12 = cycle  |  F1 = UI"
@@ -134,12 +109,6 @@ _gmk_busy = False
 
 
 def gmk_f_pressed():
-    """Handle the F key while Grab My Kit is active.
-
-    Waits for the inventory to be open, then clicks the appropriate
-    transfer-all button. If the inventory remains open after the first
-    transfer, sends another F to re-open and transfer again.
-    """
     global _gmk_busy
     if state.gmk_mode == "off" or _gmk_busy:
         return
@@ -151,7 +120,6 @@ def gmk_f_pressed():
 
 
 def _gmk_f_pressed_inner():
-    """Inner logic for gmk_f_pressed (reentrancy-safe)."""
     if state.gmk_mode == "off":
         return
 

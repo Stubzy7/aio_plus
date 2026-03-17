@@ -5,7 +5,6 @@ import time
 
 user32 = ctypes.windll.user32
 
-# Input type constants
 INPUT_MOUSE = 0
 MOUSEEVENTF_MOVE = 0x0001
 MOUSEEVENTF_LEFTDOWN = 0x0002
@@ -62,24 +61,20 @@ class INPUT(ctypes.Structure):
 
 
 def _send_input(*inputs: INPUT):
-    """Send one or more INPUT structs via SendInput."""
     n = len(inputs)
     arr = (INPUT * n)(*inputs)
     user32.SendInput(n, ctypes.byref(arr), ctypes.sizeof(INPUT))
 
 
 def set_cursor_pos(x: int, y: int):
-    """Move cursor to absolute screen coordinates (instant)."""
     user32.SetCursorPos(int(x), int(y))
 
 
 def mouse_move(x: int, y: int, speed: int = 0):
-    """Move mouse to (x, y). speed=0 is instant, higher values interpolate."""
     if speed <= 0:
         set_cursor_pos(x, y)
         return
 
-    # Interpolated movement
     pt = wt.POINT()
     user32.GetCursorPos(ctypes.byref(pt))
     start_x, start_y = pt.x, pt.y
@@ -98,7 +93,6 @@ def mouse_move(x: int, y: int, speed: int = 0):
 
 def click(x: int | None = None, y: int | None = None, button: str = "left",
           count: int = 1):
-    """Click at (x, y) or at current cursor position if coords are None."""
     if x is not None and y is not None:
         set_cursor_pos(int(x), int(y))
         time.sleep(0.001)
@@ -129,7 +123,6 @@ def click(x: int | None = None, y: int | None = None, button: str = "left",
 
 
 def mouse_down(button: str = "left"):
-    """Press and hold a mouse button."""
     if button == "left":
         flag = MOUSEEVENTF_LEFTDOWN
     elif button == "right":
@@ -143,7 +136,6 @@ def mouse_down(button: str = "left"):
 
 
 def mouse_up(button: str = "left"):
-    """Release a mouse button."""
     if button == "left":
         flag = MOUSEEVENTF_LEFTUP
     elif button == "right":
@@ -157,7 +149,6 @@ def mouse_up(button: str = "left"):
 
 
 def get_cursor_pos() -> tuple[int, int]:
-    """Get current cursor position."""
     pt = wt.POINT()
     user32.GetCursorPos(ctypes.byref(pt))
     return (pt.x, pt.y)

@@ -6,25 +6,21 @@ from core.state import state
 
 
 class TabPopcorn:
-    """Builds all widgets for the Popcorn tab inside *parent_frame*."""
 
     def __init__(self, parent_frame: ttk.Frame, state):
         self.frame = parent_frame
         self.state = state
         self._build()
 
-    # ------------------------------------------------------------------
     def _build(self):
         f = self.frame
 
-        # --- Help button ---
         self.help_btn = tk.Button(f, text="?", font=(FONT_FAMILY, 7, "bold"),
                                   fg=FG_ACCENT, bg=BG_DARK, activebackground=BG_DARK,
                                   activeforeground=FG_ACCENT,
                                   command=self._show_help)
         self.help_btn.place(x=370, y=28, width=32, height=18)
 
-        # --- All (no filter) checkbox ---
         self.all_no_filter_var = tk.BooleanVar(value=False)
         self.all_no_filter_chk = tk.Checkbutton(
             f, text="All (no filter)", variable=self.all_no_filter_var,
@@ -32,7 +28,6 @@ class TabPopcorn:
         )
         self.all_no_filter_chk.place(x=32, y=50, width=120, height=20)
 
-        # --- Filter checkboxes row ---
         filters = [
             ("Poly",    32,  60),
             ("Metal",   98,  65),
@@ -50,7 +45,6 @@ class TabPopcorn:
             self.filter_vars[name.lower()] = var
             self.filter_chks[name.lower()] = chk
 
-        # --- Custom checkbox + combo + +/- buttons ---
         self.custom_var = tk.BooleanVar(value=False)
         self.custom_chk = tk.Checkbutton(
             f, text="Custom:", variable=self.custom_var,
@@ -73,7 +67,6 @@ class TabPopcorn:
                                         command=self._custom_remove)
         self.custom_del_btn.place(x=214, y=116, width=14, height=13)
 
-        # --- Transfer All checkbox ---
         self.transfer_all_var = tk.BooleanVar(value=False)
         self.transfer_all_chk = tk.Checkbutton(
             f, text="Transfer All", variable=self.transfer_all_var,
@@ -82,7 +75,6 @@ class TabPopcorn:
         )
         self.transfer_all_chk.place(x=245, y=102, width=110, height=18)
 
-        # --- Skip First Slot checkbox ---
         self.skip_first_var = tk.BooleanVar(value=False)
         self.skip_first_chk = tk.Checkbutton(
             f, text="Skip First Slot", variable=self.skip_first_var,
@@ -91,7 +83,6 @@ class TabPopcorn:
         )
         self.skip_first_chk.place(x=245, y=120, width=120, height=18)
 
-        # --- Speed label + value ---
         tk.Label(f, text="Speed:", font=FONT_SMALL, fg=FG_DIM,
                  bg=BG_COLOR, anchor="w").place(x=32, y=146, width=44, height=16)
         _speed_name = state.pc_speed_names.get(state.pc_speed_mode, "Fast")
@@ -99,21 +90,18 @@ class TabPopcorn:
                                   bg=BG_COLOR, anchor="w")
         self.speed_txt.place(x=78, y=146, width=88, height=16)
 
-        # --- Drop Key label + value ---
         tk.Label(f, text="Drop Key:", font=FONT_SMALL, fg=FG_DIM,
                  bg=BG_COLOR, anchor="w").place(x=32, y=166, width=72, height=16)
         self.drop_key_txt = tk.Label(f, text=state.pc_drop_key.upper(), font=FONT_SMALL, fg=FG_ACCENT,
                                      bg=BG_COLOR, anchor="w")
         self.drop_key_txt.place(x=98, y=166, width=60, height=16)
 
-        # --- Set Keys button ---
         self.set_keys_btn = tk.Button(f, text="Set Keys", font=FONT_DEFAULT,
                                       fg=FG_ACCENT, bg=BG_DARK, activebackground=BG_DARK,
                                       activeforeground=FG_ACCENT,
                                       command=self._show_set_keys)
         self.set_keys_btn.place(x=32, y=188, width=120, height=28)
 
-        # --- Scan Area button ---
         self.scan_area_btn = tk.Button(f, text="Scan Area", font=FONT_SMALL,
                                        fg=FG_ACCENT, bg=BG_DARK, activebackground=BG_DARK,
                                        activeforeground=FG_ACCENT,
@@ -122,14 +110,12 @@ class TabPopcorn:
         self._scan_overlay = None
         self._scan_resize_active = False
 
-        # --- Start button (accent) ---
         self.start_btn = tk.Button(f, text="Start", font=FONT_BOLD, fg=FG_ACCENT,
                                    bg=BG_DARK, activebackground=BG_DARK,
                                    activeforeground=FG_ACCENT,
                                    command=self._start)
         self.start_btn.place(x=168, y=188, width=100, height=28)
 
-        # --- Hint text ---
         hint_font = FONT_SMALL
         tk.Label(f, text="Z = Change drop speed  |  Q = Cycle selected presets",
                  font=hint_font, fg=FG_COLOR, bg=BG_COLOR,
@@ -138,18 +124,13 @@ class TabPopcorn:
                  font=hint_font, fg=FG_COLOR, bg=BG_COLOR,
                  anchor="center").place(x=32, y=233, width=354, height=14)
 
-        # --- Status text ---
         self.status_txt = tk.Label(
             f, text="Select a mode then press F at an inventory",
             font=hint_font, fg=FG_COLOR, bg=BG_COLOR, anchor="center",
         )
         self.status_txt.place(x=32, y=249, width=354, height=14)
 
-    # ------------------------------------------------------------------
-    # Checkbox toggle handlers (mutual exclusion)
-    # ------------------------------------------------------------------
     def _toggle_all_no_filter(self):
-        """When 'All' is checked, uncheck individual filters + custom."""
         state.pc_all_no_filter = self.all_no_filter_var.get()
         if state.pc_all_no_filter:
             for var in self.filter_vars.values():
@@ -163,7 +144,6 @@ class TabPopcorn:
             state.pc_all_custom_active = False
 
     def _toggle_filter(self, name: str):
-        """When an individual filter is checked, uncheck 'All'."""
         state_map = {
             "poly": "pc_grinder_poly",
             "metal": "pc_grinder_metal",
@@ -178,15 +158,11 @@ class TabPopcorn:
             state.pc_all_no_filter = False
 
     def _toggle_custom(self):
-        """When custom is checked, uncheck 'All'."""
         state.pc_all_custom_active = self.custom_var.get()
         if state.pc_all_custom_active:
             self.all_no_filter_var.set(False)
             state.pc_all_no_filter = False
 
-    # ------------------------------------------------------------------
-    # Add / Remove callbacks
-    # ------------------------------------------------------------------
     def _custom_add(self):
         from util.list_manager import ListManager
         text = self.custom_combo.get().strip()
@@ -208,23 +184,17 @@ class TabPopcorn:
         self.custom_combo.set(state.pc_custom_filter_list[0] if state.pc_custom_filter_list else "")
 
     def _start(self):
-        """Arm Popcorn mode — sync state, validate, and hide GUI.
-
-        Toggle stop if running, check drop key, check ARK window, then arm.
-        """
         from gui.tooltip import show_tooltip
         from core.config import read_ini, write_ini
         from input.window import win_exist
         from modules.popcorn import (pc_set_status, pc_register_speed_hotkeys,
                                      pc_show_armed_tooltip, stop_popcorn)
 
-        # Toggle stop if already running
         if state.pc_running:
             state.pc_early_exit = True
             pc_set_status("Stopping...")
             return
 
-        # Sync checkbox state to module state
         state.pc_all_no_filter = self.all_no_filter_var.get()
         state.pc_grinder_poly = self.filter_vars.get("poly", tk.BooleanVar()).get()
         state.pc_grinder_metal = self.filter_vars.get("metal", tk.BooleanVar()).get()
@@ -236,11 +206,9 @@ class TabPopcorn:
         state.pc_forge_transfer_all = self.transfer_all_var.get()
         state.pc_forge_skip_first = self.skip_first_var.get()
 
-        # Persist custom filter to INI
         if state.pc_custom_filter:
             write_ini("Popcorn", "CustomFilter", state.pc_custom_filter)
 
-        # Determine mode: 1=single preset, 2=multi preset, 3=all
         checked = []
         if state.pc_all_no_filter:
             checked.append("all")
@@ -261,24 +229,20 @@ class TabPopcorn:
             pc_set_status("Select a mode first")
             return
 
-        # Check drop key is configured
         saved_drop = read_ini("Popcorn", "DropKey", "")
         if not saved_drop or saved_drop == "Default":
             self._show_set_keys_prompt()
             return
 
-        # Check ARK window exists
         if not win_exist(state.ark_window):
             pc_set_status("ARK window not found")
             return
 
-        state.pc_mode = 3  # armed
+        state.pc_mode = 3
         state.pc_tab_active = True
 
-        # Register speed hotkeys
         pc_register_speed_hotkeys(True)
 
-        # Hide GUI
         state.gui_visible = False
         if state.main_gui:
             state.main_gui.hide()
@@ -287,10 +251,8 @@ class TabPopcorn:
         pc_show_armed_tooltip()
 
     def _show_set_keys(self):
-        """Open the Set Keys dialog for configuring drop/inventory keys."""
         from core.config import write_ini
 
-        # Toggle: destroy existing dialog if open
         existing = getattr(self, '_set_keys_dlg', None)
         if existing is not None:
             try:
@@ -341,7 +303,7 @@ class TabPopcorn:
             state.pc_inv_key = inv_val
             write_ini("Popcorn", "DropKey", state.pc_drop_key)
             write_ini("Popcorn", "InvKey", inv_val)
-            # Shared inventory key — also persist for Sheep and Imprint
+            # Shared inventory key — persist for Sheep and Imprint too
             state.sheep_inventory_key = inv_val
             state.imprint_inventory_key = inv_val
             write_ini("Sheep", "InventoryKey", inv_val)
@@ -386,9 +348,6 @@ class TabPopcorn:
             "Set Drop/key before first use",
             self.frame)
 
-    # ------------------------------------------------------------------
-    # Scan Area resize
-    # ------------------------------------------------------------------
     def _toggle_scan_resize(self):
         if self._scan_resize_active:
             self._exit_scan_resize()
@@ -403,7 +362,6 @@ class TabPopcorn:
         from gui.tooltip import show_tooltip
         show_tooltip("Scan Area: WASD=move  Arrows=resize  Enter=done")
 
-        # Bind keys on root window
         root = state.root
         if root:
             self._bindings = []
@@ -429,7 +387,6 @@ class TabPopcorn:
         from gui.tooltip import hide_tooltip
         hide_tooltip()
 
-        # Unbind keys
         root = state.root
         if root:
             for seq, bid in getattr(self, "_bindings", []):
@@ -439,7 +396,6 @@ class TabPopcorn:
                     pass
             self._bindings = []
 
-        # Save to INI — divide by resolution multiplier for portability
         from core.config import write_ini
         wm = state.width_multiplier or 1
         hm = state.height_multiplier or 1
@@ -479,15 +435,7 @@ class TabPopcorn:
                 pass
             self._scan_overlay = None
 
-    # ------------------------------------------------------------------
-    # Set Keys prompt — shown when drop key not configured
-    # ------------------------------------------------------------------
     def _show_set_keys_prompt(self):
-        """Modal prompt explaining keys need to be set before continuing.
-
-        Show modal prompt explaining keys need to be set.
-        """
-        # Show main GUI and steal focus from ARK (same as F1)
         state.gui_visible = True
         if state.main_gui:
             state.main_gui.show()
@@ -516,14 +464,7 @@ class TabPopcorn:
         dlg.geometry("340x100")
         dlg.focus_force()
 
-    # ------------------------------------------------------------------
-    # Custom filter clear
-    # ------------------------------------------------------------------
     def _custom_filter_clear(self):
-        """Clear the custom filter text field and save empty to INI.
-
-        Clears text and persists empty value.
-        """
         state.pc_custom_filter = ""
         self.custom_combo.set("")
         try:
@@ -532,23 +473,11 @@ class TabPopcorn:
         except Exception:
             pass
 
-    # ------------------------------------------------------------------
-    # Calibration wizard — 2-step key detection for grid coordinates
-    # ------------------------------------------------------------------
     def _calibrate(self):
-        """2-step calibration wizard to set grid coordinates.
-
-        Step 1: User hovers over top-left of grid, presses any key.
-        Step 2: User hovers over bottom-right of grid, presses any key.
-        Captures mouse position at each step and saves to INI.
-
-        Captures mouse positions and saves to INI.
-        """
         from modules.popcorn import pc_set_status
         from core.config import write_ini
 
         def _wait_key(title, subtitle, callback):
-            """Show a dialog and wait for a key press, then call callback with coords."""
             dlg = tk.Toplevel(self.frame)
             dlg.title("Calibrate")
             dlg.configure(bg="#1A1A1A")
@@ -571,7 +500,6 @@ class TabPopcorn:
                 if timeout_id[0]:
                     dlg.after_cancel(timeout_id[0])
                 dlg.destroy()
-                # Get current mouse position
                 from input.mouse import get_cursor_pos
                 mx, my = get_cursor_pos()
                 callback(mx, my)
@@ -613,7 +541,6 @@ class TabPopcorn:
                 return
 
             x1, y1 = self._cal_x1, self._cal_y1
-            # Calculate slot dimensions from the two corners
             cols = state.pc_columns or 6
             rows = state.pc_rows or 6
             w = max(1, (x - x1) // (cols - 1)) if cols > 1 else 50
@@ -624,7 +551,6 @@ class TabPopcorn:
             state.pc_slot_w = w
             state.pc_slot_h = h
 
-            # Save de-scaled to INI
             wm = state.width_multiplier or 1
             hm = state.height_multiplier or 1
             write_ini("Popcorn", "StartSlotX", str(round(x1 / wm)))
@@ -636,17 +562,9 @@ class TabPopcorn:
 
         step1()
 
-    # ------------------------------------------------------------------
-    # Update all UI elements atomically
-    # ------------------------------------------------------------------
     def pc_update_ui(self):
-        """Refresh all Popcorn UI elements in one call.
-
-        Called after loading config or state changes.
-        """
         from modules.popcorn import pc_update_f10_speed
 
-        # Status text
         if hasattr(self, "status_txt"):
             if state.pc_running:
                 self.status_txt.configure(text="Running...")
@@ -655,20 +573,16 @@ class TabPopcorn:
             else:
                 self.status_txt.configure(text="")
 
-        # F10 speed
         pc_update_f10_speed()
 
-        # Speed label
         if hasattr(self, "speed_txt"):
             name = state.pc_speed_names.get(state.pc_speed_mode, "Fast")
             self.speed_txt.configure(text=f"{name} [Z]" if state.pc_mode > 0 else name)
 
-        # Drop key display
         if hasattr(self, "drop_key_txt"):
             self.drop_key_txt.configure(
                 text=(state.pc_drop_key or "?").upper())
 
-        # Clear F10 display when not in F10 mode
         if state.pc_f10_step == 0:
             if hasattr(self, "f10_status_txt"):
                 self.f10_status_txt.configure(text="")

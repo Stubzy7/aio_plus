@@ -13,10 +13,6 @@ from input.ocr import from_rect
 log = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-#  Tooltip helper
-# ---------------------------------------------------------------------------
-
 def _tooltip(text: str | None = None):
     try:
         from gui.tooltip import show_tooltip, hide_tooltip
@@ -29,10 +25,6 @@ def _tooltip(text: str | None = None):
             log.info("tooltip: %s", text)
 
 
-# ---------------------------------------------------------------------------
-#  Imprint log
-# ---------------------------------------------------------------------------
-
 def _im_log(msg: str):
     ts = time.strftime("%H:%M:%S")
     state.imprint_log.append(f"{ts} {msg}")
@@ -41,17 +33,11 @@ def _im_log(msg: str):
     log.debug("Imprint: %s", msg)
 
 
-# ---------------------------------------------------------------------------
-#  Config persistence
-# ---------------------------------------------------------------------------
-
 def imprint_load_config():
-    """Load imprint settings from AIO_config.ini."""
     from core.scaling import screen_width, screen_height
 
     saved = read_ini("Imprint", "InventoryKey", "")
     if not saved:
-        # Fall back to shared Popcorn InvKey
         saved = read_ini("Popcorn", "InvKey", "")
     if saved:
         state.imprint_inventory_key = saved
@@ -63,7 +49,6 @@ def imprint_load_config():
     if saved_h and int(saved_h) >= 20:
         state.imprint_snap_h = int(saved_h)
 
-    # Load saved position, or default to screen center
     saved_x = read_ini("Imprint", "ScanX", "")
     saved_y = read_ini("Imprint", "ScanY", "")
     if saved_x:
@@ -80,13 +65,11 @@ def imprint_load_config():
 
 
 def imprint_save_config():
-    """Persist imprint settings to AIO_config.ini."""
     write_ini("Imprint", "InventoryKey", state.imprint_inventory_key)
     write_ini("Imprint", "HideOverlay", "1" if state.imprint_hide_overlay else "0")
 
 
 def imprint_save_scan_size():
-    """Persist the scan-area dimensions and position."""
     write_ini("Imprint", "ScanW", str(state.imprint_snap_w))
     write_ini("Imprint", "ScanH", str(state.imprint_snap_h))
     write_ini("Imprint", "ScanX", str(state.imprint_snap_x))
@@ -94,23 +77,10 @@ def imprint_save_scan_size():
 
 
 def imprint_update_size_txt():
-    """Update the scan-area dimension label during resize.
-
-    No-op stub kept for API completeness.
-    """
     pass
 
 
-# ---------------------------------------------------------------------------
-#  Overlay (visual scan-area border)
-# ---------------------------------------------------------------------------
-
 def imprint_show_scan_overlay():
-    """Display a thin red border around the OCR scan rectangle.
-
-    Uses platform-specific overlay windows. Falls back to a no-op if
-    the GUI toolkit is unavailable.
-    """
     imprint_hide_scan_overlay()
     if state.imprint_hide_overlay and not state.imprint_resizing:
         return
@@ -126,7 +96,6 @@ def imprint_show_scan_overlay():
 
 
 def imprint_hide_scan_overlay():
-    """Destroy the scan-area overlay."""
     if state.imprint_scan_overlay is not None:
         try:
             from gui.overlay import destroy_overlay
@@ -136,24 +105,11 @@ def imprint_hide_scan_overlay():
         state.imprint_scan_overlay = None
 
 
-# ---------------------------------------------------------------------------
-#  Arm / Disarm
-# ---------------------------------------------------------------------------
-
 def imprint_toggle_armed():
-    """Toggle the imprint scanner on/off (Start/Stop button handler).
-
-    When arming:
-      - Hides the main GUI, shows the scan overlay.
-      - Enables the R hotkey for single reads.
-    When disarming:
-      - Stops auto-scan if active, hides overlay and tooltip.
-    """
     if state.imprint_scanning:
         imprint_stop_all()
         return
 
-    # Gate: inventory key must be set before first use
     if not state.imprint_inventory_key:
         from core.config import read_ini as _ri
         saved_inv = _ri("Popcorn", "InvKey", "")
@@ -183,7 +139,6 @@ def imprint_toggle_armed():
 
 
 def imprint_stop_all():
-    """Fully stop the imprint scanner — auto mode, hotkeys, overlay."""
     state.imprint_scanning = False
     state.imprint_auto_mode = False
 
@@ -195,12 +150,7 @@ def imprint_stop_all():
     _im_log("Scanner stopped")
 
 
-# ---------------------------------------------------------------------------
-#  Auto-scan loop
-# ---------------------------------------------------------------------------
-
 def imprint_toggle_auto_mode():
-    """Toggle auto-scan on/off (Q key handler while armed)."""
     if not state.imprint_scanning:
         return
 
@@ -218,14 +168,6 @@ def imprint_toggle_auto_mode():
 
 
 def imprint_auto_scan_loop():
-    """Continuously read the scan rectangle and process matched food names.
-
-    Runs in a blocking loop (should be called from a worker thread or
-    dispatched via ``SetTimer(-1)``).
-
-    The loop sleeps 150 ms between OCR reads. When a food name is matched,
-    it is processed and the loop pauses 1 s before resuming.
-    """
     while state.imprint_scanning and state.imprint_auto_mode:
         try:
             ocr_text = from_rect(
@@ -265,12 +207,7 @@ def imprint_auto_scan_loop():
         _tooltip("Auto-scan OFF\nARMED — R read | Q auto-scan")
 
 
-# ---------------------------------------------------------------------------
-#  Manual single read
-# ---------------------------------------------------------------------------
-
 def imprint_on_read_and_process():
-    """Single manual OCR read (R key handler while armed)."""
     if not state.imprint_scanning:
         return
 
@@ -309,33 +246,31 @@ def imprint_on_read_and_process():
         _tooltip(f"Done: {matched}\nARMED — R read | Q auto-scan")
 
 
-# ---------------------------------------------------------------------------
-#  Food processing — the main automation sequence
-# ---------------------------------------------------------------------------
+def _ocr_has_feed_prompt(ocr_text: str, food_name: str) -> bool:
+    if not ocr_text:
+        return False
+    t = ocr_text.lower()
+    fn = food_name.lower()
+    has_feed = "feed" in t
+    has_food = fn in t
+    has_e = any(marker in t for marker in ["[e]", "(e)", "[e", "e]", " e ", "\ne"])
+    return has_feed and has_food and has_e
+
 
 def imprint_process_food(food_name: str, ocr_text: str = ""):
-    """Open inventory, search for the food, assign to hotbar 0, feed.
-
-    Steps:
-      1. If food is "cuddle" — just press E and return.
-      2. If the OCR text already contains "[E] Feed <food>" — press E directly.
-      3. Otherwise: open inventory, wait for white pixel, click search bar,
-         type the food name, click the first result, press 0 (hotbar assign),
-         close inventory, wait for [E] feed prompt, press E.
-    """
-    # Cuddle shortcut
     if food_name.lower() == "cuddle":
         _im_log("Cuddle detected — pressing E")
         send("{e}")
         time.sleep(0.2)
         return
 
-    # Already-visible feed prompt shortcut
-    if ocr_text and "[E]" in ocr_text and "Feed" in ocr_text and food_name in ocr_text:
+    if _ocr_has_feed_prompt(ocr_text, food_name):
         _im_log(f"[E] Feed [{food_name}] already visible — pressing E directly")
         send("{e}")
         time.sleep(0.2)
         return
+    elif ocr_text:
+        _im_log(f"Feed prompt check: no match in [{ocr_text}]")
 
     _im_log(f"Opening inventory (key={state.imprint_inventory_key}) for [{food_name}]")
     send("{" + state.imprint_inventory_key + "}")
@@ -388,7 +323,7 @@ def imprint_process_food(food_name: str, ocr_text: str = ""):
     set_cursor_pos(result_x, result_y)
     time.sleep(0.050)
     click()
-    time.sleep(0.100)  # 100ms settle — let ARK register the click before hotbar key
+    time.sleep(0.100)  # let ARK register the click before hotbar key
 
     send("0")
     _im_log("Hotbar 0 assigned")
@@ -407,7 +342,6 @@ def imprint_process_food(food_name: str, ocr_text: str = ""):
 
     _im_log(f"Inv closed after {close_wait * 16}ms, scanning for [E] prompt")
 
-    # Wait for [E] Feed prompt via OCR — time-bounded (cap at 1s).
     feed_ready = False
     scan_wait = 0
     deadline = time.perf_counter() + 1.0
@@ -419,7 +353,7 @@ def imprint_process_food(food_name: str, ocr_text: str = ""):
                 scale=3,
             )
             scan_wait += 1
-            if "[E]" in e_text and "Feed" in e_text and food_name in e_text:
+            if _ocr_has_feed_prompt(e_text, food_name):
                 feed_ready = True
                 _im_log(f"[E] Feed [{food_name}] detected: [{e_text}]")
                 break
@@ -435,19 +369,13 @@ def imprint_process_food(food_name: str, ocr_text: str = ""):
     _im_log(f"Done processing [{food_name}]")
 
 
-# ---------------------------------------------------------------------------
-#  Resize mode
-# ---------------------------------------------------------------------------
-
 def imprint_toggle_resize():
-    """Enter or exit scan-area resize mode."""
     if state.imprint_resizing:
         imprint_exit_resize()
         return
 
     state.imprint_resizing = True
 
-    # Update button text and status label
     try:
         tab_misc = getattr(state, "_tab_misc", None)
         if tab_misc:
@@ -460,7 +388,6 @@ def imprint_toggle_resize():
 
     imprint_show_scan_overlay()
 
-    # Register arrow + WASD + Enter hotkeys for resizing/moving
     hk = getattr(state, "_hotkey_mgr", None)
     if hk:
         hk.register("up", imprint_resize_up, suppress=True)
@@ -477,10 +404,8 @@ def imprint_toggle_resize():
 
 
 def imprint_exit_resize():
-    """Exit resize mode, save new dimensions, and hide overlay."""
     state.imprint_resizing = False
 
-    # Unregister arrow + WASD + Enter hotkeys
     hk = getattr(state, "_hotkey_mgr", None)
     if hk:
         hk.unregister("up", imprint_resize_up)
@@ -493,7 +418,6 @@ def imprint_exit_resize():
         hk.unregister("d", imprint_move_right)
         hk.unregister("return", imprint_exit_resize)
 
-    # Restore button text and status label
     try:
         tab_misc = getattr(state, "_tab_misc", None)
         if tab_misc:
@@ -510,7 +434,6 @@ def imprint_exit_resize():
 
 
 def imprint_resize_up():
-    """Increase scan height by 20 px."""
     from core.scaling import screen_height
     state.imprint_snap_h = max(20, state.imprint_snap_h + 20)
     state.imprint_snap_y = (screen_height // 2) - (state.imprint_snap_h // 2) + 20
@@ -518,7 +441,6 @@ def imprint_resize_up():
 
 
 def imprint_resize_down():
-    """Decrease scan height by 20 px."""
     from core.scaling import screen_height
     state.imprint_snap_h = max(20, state.imprint_snap_h - 20)
     state.imprint_snap_y = (screen_height // 2) - (state.imprint_snap_h // 2) + 20
@@ -526,7 +448,6 @@ def imprint_resize_down():
 
 
 def imprint_resize_right():
-    """Increase scan width by 20 px."""
     from core.scaling import screen_width
     state.imprint_snap_w = max(40, state.imprint_snap_w + 20)
     state.imprint_snap_x = (screen_width // 2) - (state.imprint_snap_w // 2)
@@ -534,7 +455,6 @@ def imprint_resize_right():
 
 
 def imprint_resize_left():
-    """Decrease scan width by 20 px."""
     from core.scaling import screen_width
     state.imprint_snap_w = max(40, state.imprint_snap_w - 20)
     state.imprint_snap_x = (screen_width // 2) - (state.imprint_snap_w // 2)
@@ -542,13 +462,11 @@ def imprint_resize_left():
 
 
 def imprint_move_up():
-    """Move scan area up by 10 px."""
     state.imprint_snap_y = max(0, state.imprint_snap_y - 10)
     imprint_show_scan_overlay()
 
 
 def imprint_move_down():
-    """Move scan area down by 10 px."""
     from core.scaling import screen_height
     state.imprint_snap_y = min(screen_height - state.imprint_snap_h,
                                state.imprint_snap_y + 10)
@@ -556,13 +474,11 @@ def imprint_move_down():
 
 
 def imprint_move_left():
-    """Move scan area left by 10 px."""
     state.imprint_snap_x = max(0, state.imprint_snap_x - 10)
     imprint_show_scan_overlay()
 
 
 def imprint_move_right():
-    """Move scan area right by 10 px."""
     from core.scaling import screen_width
     state.imprint_snap_x = min(screen_width - state.imprint_snap_w,
                                state.imprint_snap_x + 10)

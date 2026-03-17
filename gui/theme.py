@@ -2,7 +2,6 @@
 import tkinter as tk
 from tkinter import ttk
 
-# GUI colors
 BG_COLOR = "#000000"
 BG_DARK = "#1A1A1A"
 FG_COLOR = "#DDDDDD"
@@ -22,13 +21,11 @@ FONT_TITLE = (FONT_FAMILY, 10, "bold")
 FONT_TINY = (FONT_FAMILY, 7)
 FONT_ART = ("Consolas", 5, "bold")
 
-# Native tk.Checkbutton options — use tk.Checkbutton(**CB_OPTS, text=..., variable=...)
 CB_OPTS = dict(
     bg=BG_COLOR, fg=FG_COLOR, selectcolor="#000000",
     activebackground=BG_COLOR, activeforeground=FG_COLOR,
     highlightthickness=0, bd=0, font=FONT_DEFAULT, anchor="w",
 )
-# For label-less checkboxes (label is a separate widget)
 CB_OPTS_NOLABEL = dict(
     bg=BG_COLOR, fg=FG_COLOR, selectcolor="#000000",
     activebackground=BG_COLOR, highlightthickness=0, bd=0, anchor="w",
@@ -36,9 +33,7 @@ CB_OPTS_NOLABEL = dict(
 
 
 class AHKCheckbox(tk.Frame):
-    """Custom checkbox: 15x15 box with gray border, dark fill, white tick when checked.
-    Label text right of box.
-    """
+
     def __init__(self, parent, text="", variable=None, command=None,
                  font=(FONT_FAMILY, 10), fg=FG_COLOR, box_size=15,
                  bg=BG_COLOR, check_color=FG_COLOR, box_bg=BG_DARK,
@@ -52,12 +47,10 @@ class AHKCheckbox(tk.Frame):
         self.box_bg = box_bg
         self.box_border = box_border
 
-        # Canvas for the checkbox square
         self.canvas = tk.Canvas(self, width=box_size + 2, height=box_size + 2,
                                 bg=bg, highlightthickness=0, borderwidth=0)
         self.canvas.pack(side="left", padx=(0, 4))
 
-        # Label
         if text:
             self.label = tk.Label(self, text=text, bg=bg, fg=fg, font=font,
                                   anchor="w")
@@ -101,13 +94,11 @@ class AHKCheckbox(tk.Frame):
 
 
 def apply_theme(root: tk.Tk):
-    """Apply the dark theme to the root window and all ttk widgets."""
     root.configure(bg=BG_COLOR)
 
     style = ttk.Style(root)
     style.theme_use("default")
 
-    # Notebook (tabs) — compact layout with white border
     style.configure("TNotebook", background=BG_COLOR, borderwidth=1,
                     padding=[0, 0])
     style.configure("TNotebook.Tab",
@@ -120,14 +111,11 @@ def apply_theme(root: tk.Tk):
               lightcolor=[("selected", FG_ACCENT), ("!selected", "#7A2020")],
               darkcolor=[("selected", FG_ACCENT), ("!selected", "#7A2020")],
               bordercolor=[("selected", FG_ACCENT), ("!selected", "#7A2020")])
-    # Remove internal padding around tab content
     style.layout("TNotebook", [("Notebook.client", {"sticky": "nswe"})])
 
-    # Frame
     style.configure("TFrame", background=BG_COLOR)
     style.configure("Dark.TFrame", background=BG_DARK)
 
-    # Label
     style.configure("TLabel", background=BG_COLOR, foreground=FG_COLOR,
                     font=FONT_DEFAULT)
     style.configure("Dim.TLabel", foreground=FG_DIM, font=FONT_SMALL_ITALIC)
@@ -135,24 +123,18 @@ def apply_theme(root: tk.Tk):
     style.configure("Green.TLabel", foreground=FG_GREEN, font=FONT_SMALL)
     style.configure("Title.TLabel", foreground=FG_ACCENT, font=FONT_TITLE)
 
-    # Button
     style.configure("TButton", font=FONT_DEFAULT, padding=[6, 2])
     style.configure("Accent.TButton", foreground=FG_ACCENT, font=FONT_BOLD)
     style.configure("Small.TButton", font=FONT_SMALL)
 
-    # Checkbutton — not styled via ttk; use tk.Checkbutton directly
-    # for native Windows tick marks. See CB_OPTS in this module.
+    # Checkbutton not styled via ttk — use tk.Checkbutton with CB_OPTS instead
 
-    # Entry
     style.configure("TEntry", font=FONT_DEFAULT)
 
-    # Combobox
     style.configure("TCombobox", font=FONT_DEFAULT)
 
-    # Spinbox
     style.configure("TSpinbox", font=FONT_DEFAULT)
 
-    # LabelFrame
     style.configure("TLabelframe", background=BG_COLOR, foreground=FG_COLOR)
     style.configure("TLabelframe.Label", background=BG_COLOR,
                     foreground=FG_ACCENT, font=FONT_BOLD)

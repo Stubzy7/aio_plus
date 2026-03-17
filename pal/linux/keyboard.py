@@ -1,12 +1,6 @@
-"""Linux keyboard input using xdotool.
-
-Drop-in replacement for platform.win32.keyboard — same public API.
-"""
-
 import subprocess
 import time
 
-# Same VK_MAP as Windows — these are logical codes used throughout the app
 VK_MAP = {
     "enter": 0x0D, "return": 0x0D, "tab": 0x09, "escape": 0x1B, "esc": 0x1B,
     "space": 0x20, "backspace": 0x08, "delete": 0x2E, "insert": 0x2D,
@@ -37,15 +31,13 @@ VK_MAP = {
     "vkc0": 0xC0,
 }
 
-# Extended keys (same set as Windows — used by some callers for key flag checks)
 EXTENDED_KEYS = {
-    0x2D, 0x2E, 0x24, 0x23, 0x21, 0x22,  # insert, delete, home, end, pgup, pgdn
-    0x25, 0x26, 0x27, 0x28,  # arrow keys
-    0x5B, 0x5C,  # win keys
-    0xA3, 0xA5,  # right ctrl, right alt
+    0x2D, 0x2E, 0x24, 0x23, 0x21, 0x22,
+    0x25, 0x26, 0x27, 0x28,
+    0x5B, 0x5C,
+    0xA3, 0xA5,
 }
 
-# Map VK codes to xdotool key names
 VK_TO_XDO = {
     0x0D: "Return", 0x09: "Tab", 0x1B: "Escape", 0x20: "space",
     0x08: "BackSpace", 0x2E: "Delete", 0x2D: "Insert",
@@ -60,33 +52,26 @@ VK_TO_XDO = {
     0xBE: "period", 0xBF: "slash", 0xC0: "grave",
     0xDB: "bracketleft", 0xDC: "backslash", 0xDD: "bracketright", 0xDE: "apostrophe",
 }
-# F keys
 for _i in range(12):
     VK_TO_XDO[0x70 + _i] = f"F{_i + 1}"
-# Letters
 for _i in range(26):
     VK_TO_XDO[0x41 + _i] = chr(ord('a') + _i)
-# Digits
 for _i in range(10):
     VK_TO_XDO[0x30 + _i] = str(_i)
-# Numpad
 for _i in range(10):
     VK_TO_XDO[0x60 + _i] = f"KP_{_i}"
 
 
 def _vk_from_name(name: str) -> int:
-    """Resolve a key name to a virtual key code."""
     lower = name.lower().strip("{}")
     if lower in VK_MAP:
         return VK_MAP[lower]
-    # Single character
     if len(lower) == 1:
         c = ord(lower)
         if ord('a') <= c <= ord('z'):
-            return c - 32  # to uppercase VK
+            return c - 32
         if ord('0') <= c <= ord('9'):
             return c
-    # Hex vk code like vkC0
     if lower.startswith("vk"):
         try:
             return int(lower[2:], 16)
@@ -96,12 +81,10 @@ def _vk_from_name(name: str) -> int:
 
 
 def _vk_to_xdo(vk: int) -> str:
-    """Convert a VK code to an xdotool key name."""
     return VK_TO_XDO.get(vk, "")
 
 
 def _xdo(*args: str):
-    """Run an xdotool command silently."""
     try:
         subprocess.run(["xdotool"] + list(args),
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -111,7 +94,6 @@ def _xdo(*args: str):
 
 
 def key_down(key: str):
-    """Press a key down (no release)."""
     vk = _vk_from_name(key)
     xdo_name = _vk_to_xdo(vk)
     if xdo_name:
@@ -119,7 +101,6 @@ def key_down(key: str):
 
 
 def key_up(key: str):
-    """Release a key."""
     vk = _vk_from_name(key)
     xdo_name = _vk_to_xdo(vk)
     if xdo_name:
@@ -127,7 +108,6 @@ def key_up(key: str):
 
 
 def key_press(key: str, duration_ms: int = 0):
-    """Press and release a key."""
     vk = _vk_from_name(key)
     xdo_name = _vk_to_xdo(vk)
     if not xdo_name:
@@ -141,18 +121,10 @@ def key_press(key: str, duration_ms: int = 0):
 
 
 def send(keys: str):
-    """Parse and send a key string.
-
-    Supports:
-    - {key} for special keys: {Enter}, {Escape}, {F1}, etc.
-    - ^ for Ctrl, + for Shift, ! for Alt
-    - Plain characters are typed directly
-    """
     i = 0
     while i < len(keys):
         ch = keys[i]
 
-        # Modifier prefixes
         if ch == "^":
             key_down("ctrl")
             i += 1
@@ -178,12 +150,10 @@ def send(keys: str):
             key_up("alt")
             continue
 
-        # Braced key name
         if ch == "{":
             end = keys.find("}", i + 1)
             if end != -1:
                 key_name = keys[i + 1:end]
-                # Handle {key N} for repeated presses
                 parts = key_name.rsplit(" ", 1)
                 if len(parts) == 2 and parts[1].isdigit():
                     for _ in range(int(parts[1])):
@@ -193,13 +163,11 @@ def send(keys: str):
                 i = end + 1
                 continue
 
-        # Plain character
         key_press(ch)
         i += 1
 
 
 def _send_one_char_or_brace(keys: str, i: int):
-    """Send a single char or braced key starting at position i."""
     if keys[i] == "{":
         end = keys.find("}", i + 1)
         if end != -1:
@@ -209,7 +177,6 @@ def _send_one_char_or_brace(keys: str, i: int):
 
 
 def _skip_one(keys: str, i: int) -> int:
-    """Skip past one char or braced key."""
     if i < len(keys) and keys[i] == "{":
         end = keys.find("}", i + 1)
         return end + 1 if end != -1 else i + 1
@@ -217,7 +184,6 @@ def _skip_one(keys: str, i: int) -> int:
 
 
 def send_text(text: str):
-    """Type a string of text using xdotool type."""
     try:
         subprocess.run(["xdotool", "type", "--clearmodifiers", text],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -227,25 +193,20 @@ def send_text(text: str):
 
 
 def send_text_vk(text: str):
-    """Type a string using individual key presses (VK-based)."""
     for ch in text:
         key_press(ch)
         time.sleep(0.001)
 
 
 def _make_lparam(vk: int, up: bool = False) -> int:
-    """Not needed on Linux. Returns 0 for API compatibility."""
     return 0
 
 
 def control_send(hwnd: int, keys: str):
-    """Send keys to a specific window via xdotool --window."""
-    # Parse the key string and send each key with --window
     i = 0
     while i < len(keys):
         ch = keys[i]
 
-        # Modifier prefixes
         if ch in "^+!":
             mod_map = {'^': "Control_L", '+': "Shift_L", '!': "Alt_L"}
             mod_xdo = mod_map[ch]
@@ -274,7 +235,6 @@ def control_send(hwnd: int, keys: str):
                 i += 1
             continue
 
-        # Brace-wrapped key name
         if ch == "{":
             close = keys.find("}", i + 1)
             if close == -1:
@@ -282,7 +242,6 @@ def control_send(hwnd: int, keys: str):
                 continue
             raw = keys[i + 1:close]
             parts = raw.lower().split()
-            # Handle {Ctrl down}, {Ctrl up}, etc.
             if len(parts) == 2 and parts[1] in ("down", "up"):
                 vk = _vk_from_name(parts[0])
                 xdo_name = _vk_to_xdo(vk)
@@ -297,7 +256,6 @@ def control_send(hwnd: int, keys: str):
             i = close + 1
             continue
 
-        # Plain character
         vk = _vk_from_name(ch)
         xdo_name = _vk_to_xdo(vk)
         if xdo_name:
@@ -306,7 +264,6 @@ def control_send(hwnd: int, keys: str):
 
 
 def control_send_text(hwnd: int, text: str):
-    """Send text to a specific window via xdotool type --window."""
     try:
         subprocess.run(["xdotool", "type", "--window", str(hwnd),
                         "--clearmodifiers", text],
