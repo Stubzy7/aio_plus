@@ -1,6 +1,6 @@
 # AIO+
 
-All-in-one automation tool for **ARK: Survival Ascended** on Windows and Linux.
+AIO for **ARK: Survival Ascended** on Windows and Linux.
 
 ## Features
 
