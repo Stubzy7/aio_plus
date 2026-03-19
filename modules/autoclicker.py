@@ -3,7 +3,7 @@ import logging
 
 from core.state import state
 from core.timers import timers
-from input.window import win_exist, control_click
+from input.window import win_exist, control_click, find_input_child
 
 log = logging.getLogger(__name__)
 
@@ -93,7 +93,8 @@ def autoclick_loop():
     hwnd = win_exist(state.ark_window)
     if not hwnd:
         return
-    control_click(hwnd, 1, 1)
+    child = find_input_child(hwnd)
+    control_click(child, 1, 1, activate=False)
 
 
 def autoclick_slower():

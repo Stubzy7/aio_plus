@@ -90,6 +90,11 @@ class TabAutoLvl:
 
         combine = self.combine_var.get()
 
+        if not stat_points and not self.auto_saddle_var.get():
+            from gui.tooltip import show_tooltip
+            show_tooltip(" No stats set \u2014 enter point values first", 0, 0)
+            return
+
         run_auto_lvl(
             stat_points=stat_points,
             no_oxy=self.no_oxy_var.get(),

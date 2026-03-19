@@ -15,7 +15,7 @@ from input.mouse import (
     click, mouse_move, mouse_down, mouse_up, set_cursor_pos, get_cursor_pos,
 )
 from input.keyboard import send, send_text, key_press, key_down, key_up
-from input.window import win_exist, win_activate, get_foreground_window
+from input.window import win_exist, win_activate, get_foreground_window, control_click, find_input_child
 from core.scaling import screen_width, screen_height
 
 log = logging.getLogger(__name__)
@@ -660,18 +660,26 @@ def macro_play_by_index(idx: int):
     state.macro_playing = True
     state.macro_active_idx = idx
 
-    state.gui_visible = False
-    hwnd = win_exist(state.ark_window)
-    if hwnd and get_foreground_window() != hwnd:
-        win_activate(hwnd)
-    time.sleep(0.2)
-
     m = state.macro_list[idx - 1]
+    keys = m.get("repeat_keys", [])
+    bg_click = (m["type"] == "repeat" and len(keys) == 1
+                and keys[0].lower() == "lbutton")
+
+    state.gui_visible = False
+    if bg_click:
+        root = getattr(state, "root", None)
+        if root:
+            root.after(0, root.withdraw)
+    else:
+        hwnd = win_exist(state.ark_window)
+        if hwnd and get_foreground_window() != hwnd:
+            win_activate(hwnd)
+        time.sleep(0.2)
     if m["type"] == "recorded":
         t = threading.Thread(target=macro_play_recorded_thread, args=(m,), daemon=True)
         t.start()
     elif m["type"] == "repeat":
-        t = threading.Thread(target=macro_play_repeat_thread, args=(m,), daemon=True)
+        t = threading.Thread(target=macro_play_repeat_thread, args=(m, bg_click), daemon=True)
         t.start()
     elif m["type"] == "pyro":
         t = threading.Thread(target=_macro_play_pyro_thread, args=(m,), daemon=True)
@@ -731,7 +739,7 @@ def macro_play_recorded_thread(m: dict):
         )
 
 
-def macro_play_repeat_thread(m: dict):
+def macro_play_repeat_thread(m: dict, bg_mode: bool = False):
     VK_Q = 0x51
 
     my_idx = state.macro_active_idx
@@ -758,6 +766,95 @@ def macro_play_repeat_thread(m: dict):
             if is_spam:
                 _repeat_build_tooltip(m, keys)
 
+    # ── BG left-click mode ──────────────────────────────────
+    if bg_mode:
+        _bg_interval = [interval]
+
+        def _bg_slower():
+            from core.state import state as _st
+            _bg_interval[0] += _st.autoclick_interval_step
+            _bg_update_tooltip(m, _bg_interval[0], is_spam)
+
+        def _bg_faster():
+            from core.state import state as _st
+            _bg_interval[0] = max(_st.autoclick_min_interval,
+                                  _bg_interval[0] - _st.autoclick_interval_step)
+            _bg_update_tooltip(m, _bg_interval[0], is_spam)
+
+        try:
+            hk = state._hotkey_mgr
+            hk.register("[", _bg_slower, suppress=True)
+            hk.register("]", _bg_faster, suppress=True)
+        except Exception:
+            pass
+
+        # Resolve the input child hwnd once — matches AHK ControlClick
+        # targeting the child render surface, not the top-level window.
+        _bg_hwnd = win_exist(state.ark_window)
+        if _bg_hwnd:
+            _bg_hwnd = find_input_child(_bg_hwnd)
+
+        if is_spam:
+            _bg_update_tooltip(m, _bg_interval[0], True)
+            while state.macro_playing:
+                if not _bg_hwnd:
+                    _bg_hwnd = win_exist(state.ark_window)
+                    if _bg_hwnd:
+                        _bg_hwnd = find_input_child(_bg_hwnd)
+                if _bg_hwnd:
+                    control_click(_bg_hwnd, 1, 1, activate=False)
+                time.sleep(0.016)
+        else:
+            while state.macro_playing:
+                _bg_update_tooltip(m, _bg_interval[0], False)
+                remaining = _bg_interval[0]
+                while remaining > 0 and state.macro_playing:
+                    secs = f"{remaining / 1000:.1f}"
+                    _tooltip(
+                        f" BG Left Click: {m['name']} in {secs}s\n"
+                        f" [ = Slower   ] = Faster\n"
+                        f" Z = next macro  |  F1 = Stop"
+                    )
+                    step = min(remaining, 100)
+                    time.sleep(step / 1000.0)
+                    remaining -= step
+
+                if not state.macro_playing:
+                    break
+
+                if not _bg_hwnd:
+                    _bg_hwnd = win_exist(state.ark_window)
+                    if _bg_hwnd:
+                        _bg_hwnd = find_input_child(_bg_hwnd)
+                if _bg_hwnd:
+                    control_click(_bg_hwnd, 1, 1, activate=False)
+
+                _tooltip(
+                    f" BG Left Click: {m['name']} CLICKED\n"
+                    f" [ = Slower   ] = Faster\n"
+                    f" Z = next macro  |  F1 = Stop"
+                )
+                time.sleep(0.050)
+
+        try:
+            hk = state._hotkey_mgr
+            hk.unregister("[", _bg_slower)
+            hk.unregister("]", _bg_faster)
+        except Exception:
+            pass
+
+        if state.macro_active_idx == my_idx:
+            state.macro_playing = False
+            state.macro_active_idx = 0
+            _macro_save_if_dirty()
+            _tooltip(None)
+            state.gui_visible = True
+            root = getattr(state, "root", None)
+            if root:
+                root.after(0, root.deiconify)
+        return
+
+    # ── Normal (foreground) repeat mode ─────────────────────
     if is_spam:
         _repeat_build_tooltip(m, keys)
         while state.macro_playing:
@@ -821,6 +918,15 @@ def _repeat_build_tooltip(m: dict, keys: list):
         key_list += f"\n{arrow}{k}"
     q_hint = "\n Q = next key" if len(keys) > 1 else ""
     _tooltip(f" Spam: {cur_key}{key_list}{q_hint}\n Z = next macro  |  F1 = Stop")
+
+
+def _bg_update_tooltip(m: dict, interval_ms: int, is_spam: bool):
+    mode = "Spam" if is_spam else f"Interval: {interval_ms}ms"
+    _tooltip(
+        f" BG Left Click: {m['name']}  ({mode})\n"
+        f" [ = Slower   ] = Faster\n"
+        f" Z = next macro  |  F1 = Stop"
+    )
 
 
 def _send_macro_key(key: str):

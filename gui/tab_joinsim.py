@@ -178,29 +178,95 @@ class TabJoinSim:
 
         # prevent GC of PhotoImages
         self._art_refs = []
+        self._anim_cycler = None
+        self._anim_label = None
+        self._anim_photo = None
+        self._gg_cycler = None
+        self._gg_label = None
+        self._gg_photo = None
+        self._anim_after_id = None
         try:
             from PIL import ImageTk
-            from gui.art import render_delta_spiral, render_gg_art
 
-            delta_img = render_delta_spiral()
-            delta_photo = ImageTk.PhotoImage(delta_img)
-            delta_label = tk.Label(f, image=delta_photo, borderwidth=0, bg=BG_COLOR)
-            delta_label.place(x=275, y=75)
-            delta_label.lower()
-            self._art_refs.append(delta_photo)
+            try:
+                from gui.art_anim import AnimationCycler
+                self._anim_cycler = AnimationCycler()
+                self._anim_cycler.trigger()
+                self._anim_photo = ImageTk.PhotoImage(self._anim_cycler.render())
+                self._anim_label = tk.Label(f, image=self._anim_photo, borderwidth=0, bg=BG_COLOR)
+                self._anim_label.place(x=275, y=75)
+                self._anim_label.lower()
+                self._art_refs.append(self._anim_photo)
+            except ImportError:
+                from gui.art import render_delta_spiral
+                delta_img = render_delta_spiral()
+                delta_photo = ImageTk.PhotoImage(delta_img)
+                delta_label = tk.Label(f, image=delta_photo, borderwidth=0, bg=BG_COLOR)
+                delta_label.place(x=275, y=75)
+                delta_label.lower()
+                self._art_refs.append(delta_photo)
 
-            gg_img = render_gg_art()
-            gg_photo = ImageTk.PhotoImage(gg_img)
-            gg_label = tk.Label(f, image=gg_photo, borderwidth=0, bg=BG_COLOR)
-            gg_label.place(x=240, y=260)
-            self._art_refs.append(gg_photo)
+            try:
+                from gui.art_anim import GGAnimationCycler
+                self._gg_cycler = GGAnimationCycler()
+                self._gg_cycler.trigger()
+                self._gg_photo = ImageTk.PhotoImage(self._gg_cycler.render())
+                self._gg_label = tk.Label(f, image=self._gg_photo, borderwidth=0, bg=BG_COLOR)
+                self._gg_label.place(x=240, y=260)
+                self._art_refs.append(self._gg_photo)
+            except ImportError:
+                from gui.art import render_gg_art
+                gg_img = render_gg_art()
+                gg_photo = ImageTk.PhotoImage(gg_img)
+                gg_label = tk.Label(f, image=gg_photo, borderwidth=0, bg=BG_COLOR)
+                gg_label.place(x=240, y=260)
+                self._art_refs.append(gg_photo)
 
             self.ob_status_text.lift()
             self.ob_down_text.lift()
             self.pc_f10_status.lift()
             self.gmk_status.lift()
+
+            self._anim_tick()
         except ImportError:
             pass
+
+    def _anim_tick(self):
+        if not self._anim_cycler and not self._gg_cycler:
+            return
+        from PIL import ImageTk
+        refs = []
+
+        if self._anim_cycler:
+            self._anim_cycler.tick()
+            img = self._anim_cycler.render()
+            self._anim_photo = ImageTk.PhotoImage(img)
+            self._anim_label.configure(image=self._anim_photo)
+            refs.append(self._anim_photo)
+
+        if self._gg_cycler:
+            self._gg_cycler.tick()
+            gg_img = self._gg_cycler.render()
+            self._gg_photo = ImageTk.PhotoImage(gg_img)
+            self._gg_label.configure(image=self._gg_photo)
+            refs.append(self._gg_photo)
+
+        self._art_refs = refs
+        self._anim_after_id = self.frame.after(33, self._anim_tick)
+
+    def anim_start(self):
+        if self._anim_cycler:
+            self._anim_cycler.reset()
+            self._anim_cycler.untrigger()
+        if self._gg_cycler:
+            self._gg_cycler.reset()
+            self._gg_cycler.untrigger()
+
+    def anim_stop(self):
+        if self._anim_cycler:
+            self._anim_cycler.trigger()
+        if self._gg_cycler:
+            self._gg_cycler.trigger()
 
     def _select_sim_a(self):
         self.sim_a_chk.select()

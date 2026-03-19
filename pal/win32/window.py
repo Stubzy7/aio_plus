@@ -88,21 +88,21 @@ def find_input_child(hwnd: int) -> int:
     return best[0]
 
 
-def control_click(hwnd: int, x: int, y: int):
-    # Uses PostMessage (async) not SendMessage (blocking) to avoid
-    # deadlocking with DX render loops.
+def control_click(hwnd: int, x: int, y: int, *, activate: bool = True):
     x, y = int(x), int(y)
     lparam = (y << 16) | (x & 0xFFFF)
+    log.debug("control_click: hwnd=%s target=(%d,%d) activate=%s", hwnd, x, y, activate)
 
-    check_x = lparam & 0xFFFF
-    check_y = (lparam >> 16) & 0xFFFF
-    cname = _get_class_name(hwnd)
-    log.debug("control_click: hwnd=%s class='%s' target=(%d,%d) packed=(%d,%d)",
-              hwnd, cname, x, y, check_x, check_y)
+    needs_activate = activate and user32.GetForegroundWindow() != hwnd
+    if needs_activate:
+        prev = _flash_activate(hwnd)
+        user32.PostMessageW(hwnd, WM_MOUSEMOVE, 0, lparam)
 
-    user32.PostMessageW(hwnd, WM_MOUSEMOVE, 0, lparam)
     user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
     user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, lparam)
+
+    if needs_activate:
+        _flash_restore(prev, hwnd)
 
 
 def get_client_rect(hwnd: int) -> tuple[int, int, int, int]:

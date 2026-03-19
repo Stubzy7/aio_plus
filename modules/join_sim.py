@@ -217,6 +217,27 @@ def _off(name: str, default: int = 0) -> int:
     return int(getattr(state, name, default))
 
 
+def _joinsim_anim(method: str):
+    js = getattr(state, "_tab_joinsim", None)
+    if js and state.root:
+        state.root.after(0, getattr(js, method))
+
+
+def _handle_main_menu():
+    _send_window("{Enter}")
+    time.sleep(0.1)
+    _click_window(_off("back_offset_x"), _off("back_offset_y"))
+    time.sleep(0.5)
+    _click_window(_off("back_offset_x"), _off("back_offset_y"))
+    time.sleep(0.5)
+    hwnd = _game_hwnd()
+    if hwnd:
+        gx, gy, _, _ = win_get_pos(hwnd)
+        if gx == 0 and gy == 0:
+            win_move(hwnd, 1, 0)
+            state.incounter = 0
+
+
 def sim_loop():
     if not getattr(state, "auto_sim_check", False):
         return
@@ -250,17 +271,6 @@ def sim_loop_a():
         state.nosessions = 0
         state.sm = 0
         state.mm = 0
-        return
-
-    # Once incounter is above threshold, the game is likely loading into a server.
-    # Transient pixel matches during the loading screen should NOT trigger menu actions.
-    if state.incounter >= 10 and s != "":
-        state.incounter += 1
-        update_sim_status(f"Loading In: {state.incounter}/50")
-        if state.incounter % 25 == 0:
-            sim_log_msg(f"[{state.sim_cycle_count}] Loading (ignoring '{s}') — {state.incounter}/50")
-        if state.incounter >= 50:
-            _sim_success()
         return
 
     if s == "SinglePlayer":
@@ -381,10 +391,9 @@ def sim_loop_a():
         time.sleep(2.0)
 
     elif s == "MainMenu":
-        sim_log_msg(f"[{state.sim_cycle_count}] MainMenu — clicking Play")
-        update_sim_status("Main Menu - clicking Play")
-        _click_window(_off("main_menu_join_offset_x"), _off("main_menu_join_offset_y"))
-        time.sleep(1.25)
+        sim_log_msg(f"[{state.sim_cycle_count}] MainMenu — Enter + Back")
+        update_sim_status("Main Menu - navigating")
+        _handle_main_menu()
 
     elif s == "MiddleMenu":
         sim_log_msg(f"[{state.sim_cycle_count}] MiddleMenu — clicking JoinGame")
@@ -425,15 +434,6 @@ def sim_loop_b():
         time.sleep(0.5)
         state.stuck_count = 0
         state.nosessions = 0
-        return
-
-    if state.incounter >= 10 and s != "":
-        state.incounter += 1
-        update_sim_status(f"Loading In: {state.incounter}/50")
-        if state.incounter % 25 == 0:
-            sim_log_msg(f"[{state.sim_cycle_count}] B Loading (ignoring '{s}') — {state.incounter}/50")
-        if state.incounter >= 50:
-            _sim_success()
         return
 
     if s == "ServerFull":
@@ -502,10 +502,9 @@ def sim_loop_b():
         _click_window(_off("mod_join_offset_x"), _off("mod_join_offset_y"))
 
     elif s == "MainMenu":
-        sim_log_msg(f"[{state.sim_cycle_count}] B MainMenu — clicking Play")
-        update_sim_status("Main Menu")
-        _click_window(_off("main_menu_join_offset_x"), _off("main_menu_join_offset_y"))
-        time.sleep(1.25)
+        sim_log_msg(f"[{state.sim_cycle_count}] B MainMenu — Enter + Back")
+        update_sim_status("Main Menu - navigating")
+        _handle_main_menu()
 
     elif s == "MiddleMenu":
         sim_log_msg(f"[{state.sim_cycle_count}] B MiddleMenu — clicking JoinGame")
@@ -545,6 +544,8 @@ def _sim_success():
 
     _update_gui_status("")
     _reset_gui_button()
+
+    _joinsim_anim("anim_stop")
 
     state.gui_visible = False
     _minimize_gui()
@@ -592,16 +593,12 @@ def _minimize_gui():
         pass
 
 
-def _taskbar_auto_hide():
-    import sys
-    if sys.platform != "win32":
-        return
+_taskbar_saved_state = None
 
+
+def _taskbar_appbar_msg(msg, lp=0):
     import ctypes
     import ctypes.wintypes as wt
-
-    ABM_SETSTATE = 0x0000000A
-    ABS_AUTOHIDE = 0x01
 
     class APPBARDATA(ctypes.Structure):
         _fields_ = [
@@ -613,49 +610,41 @@ def _taskbar_auto_hide():
             ("lParam", ctypes.c_long),
         ]
 
+    tray_hwnd = ctypes.windll.user32.FindWindowW("Shell_TrayWnd", None)
+    if not tray_hwnd:
+        return 0
+    abd = APPBARDATA()
+    abd.cbSize = ctypes.sizeof(APPBARDATA)
+    abd.hWnd = tray_hwnd
+    abd.lParam = lp
+    return ctypes.windll.shell32.SHAppBarMessage(msg, ctypes.byref(abd))
+
+
+def _taskbar_auto_hide():
+    global _taskbar_saved_state
+    import sys
+    if sys.platform != "win32":
+        return
+
     try:
-        tray_hwnd = ctypes.windll.user32.FindWindowW("Shell_TrayWnd", None)
-        if not tray_hwnd:
-            return
-        abd = APPBARDATA()
-        abd.cbSize = ctypes.sizeof(APPBARDATA)
-        abd.hWnd = tray_hwnd
-        abd.lParam = ABS_AUTOHIDE
-        ctypes.windll.shell32.SHAppBarMessage(ABM_SETSTATE, ctypes.byref(abd))
+        cur = _taskbar_appbar_msg(0x00000004)  # ABM_GETSTATE
+        if not (cur & 0x01):
+            _taskbar_saved_state = cur
+            _taskbar_appbar_msg(0x0000000A, cur | 0x01)  # ABM_SETSTATE
     except Exception:
         pass
 
 
 def _taskbar_restore():
+    global _taskbar_saved_state
     import sys
     if sys.platform != "win32":
         return
 
-    import ctypes
-    import ctypes.wintypes as wt
-
-    ABM_SETSTATE = 0x0000000A
-    ABS_AUTOHIDE = 0x01
-
-    class APPBARDATA(ctypes.Structure):
-        _fields_ = [
-            ("cbSize", wt.DWORD),
-            ("hWnd", wt.HWND),
-            ("uCallbackMessage", wt.UINT),
-            ("uEdge", wt.UINT),
-            ("rc", wt.RECT),
-            ("lParam", ctypes.c_long),
-        ]
-
     try:
-        tray_hwnd = ctypes.windll.user32.FindWindowW("Shell_TrayWnd", None)
-        if not tray_hwnd:
-            return
-        abd = APPBARDATA()
-        abd.cbSize = ctypes.sizeof(APPBARDATA)
-        abd.hWnd = tray_hwnd
-        abd.lParam = 0
-        ctypes.windll.shell32.SHAppBarMessage(ABM_SETSTATE, ctypes.byref(abd))
+        if _taskbar_saved_state is not None:
+            _taskbar_appbar_msg(0x0000000A, _taskbar_saved_state)  # ABM_SETSTATE
+            _taskbar_saved_state = None
     except Exception:
         pass
 
@@ -712,6 +701,8 @@ def auto_sim_button_toggle():
         timers.set_timer(TIMER_NAME, sim_loop, SIM_INTERVAL_MS)
         sim_loop()
 
+        _joinsim_anim("anim_start")
+
         if state.toolbox_enabled:
             _tooltip(f"Simming for: {_server_number()} | Starting...")
     else:
@@ -731,6 +722,8 @@ def auto_sim_button_toggle():
         state.jl = 0
         state.sim_cycle_status = "Idle"
         _update_gui_status("")
+
+        _joinsim_anim("anim_stop")
 
         if state.toolbox_enabled:
             _tooltip("Sim Stopped")

@@ -57,9 +57,13 @@ def auto_lvl_build_tooltip() -> str:
         return " AutoLvL: No stats set"
 
     stat_points = params["stat_points"]
+    auto_saddle = params.get("auto_saddle", False)
     combine = params.get("combine", True)
     stat_queue = params.get("stat_queue", [])
     stat_idx = params.get("stat_idx", 0)
+
+    if not stat_queue and auto_saddle:
+        return " AutoLvL: Saddle only\n F at inventory  |  F1 = Stop/UI"
 
     if combine:
         parts = []
@@ -198,6 +202,10 @@ def _auto_lvl_f_cycle(params: dict):
     cryo_after = params["cryo_after"]
 
     if not stat_queue:
+        if params["auto_saddle"]:
+            if not _wait_for_inventory():
+                return
+            _auto_lvl_finish(params["auto_saddle"], params["cryo_after"])
         return
 
     key, count = stat_queue[stat_idx]

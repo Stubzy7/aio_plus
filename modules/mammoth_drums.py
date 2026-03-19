@@ -3,12 +3,13 @@ import logging
 
 from core.state import state
 from core.timers import timers
-from input.window import win_exist, control_click
+from input.window import win_exist, control_click, find_input_child
 
 log = logging.getLogger(__name__)
 
 TIMER_NAME = "mammoth_drum_tick"
 DRUM_INTERVAL_MS = 1840
+_cached_child = 0
 
 
 def _tooltip(text: str | None = None):
@@ -39,6 +40,7 @@ def toggle_mammoth_script():
 
 
 def start_mammoth_script():
+    global _cached_child
     state.run_mammoth_script = True
     _tooltip(" BG Mammoth Drums RUNNING\nF8 = Stop")
 
@@ -49,13 +51,16 @@ def start_mammoth_script():
 
     hwnd = win_exist(state.ark_window)
     if hwnd:
-        control_click(hwnd, 1, 1)
+        _cached_child = find_input_child(hwnd)
+        control_click(_cached_child, 1, 1, activate=False)
 
     timers.set_timer(TIMER_NAME, mammoth_drum_tick, DRUM_INTERVAL_MS)
     log.info("Mammoth drums started (every %d ms)", DRUM_INTERVAL_MS)
 
 
 def stop_mammoth_script():
+    global _cached_child
+    _cached_child = 0
     state.run_mammoth_script = False
     timers.stop_timer(TIMER_NAME)
     _tooltip(None)
@@ -79,4 +84,7 @@ def mammoth_drum_tick():
         stop_mammoth_script()
         return
 
-    control_click(hwnd, 1, 1)
+    global _cached_child
+    if not _cached_child:
+        _cached_child = find_input_child(hwnd)
+    control_click(_cached_child, 1, 1, activate=False)
