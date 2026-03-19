@@ -40,12 +40,20 @@ AIO for **ARK: Survival Ascended** on Windows and Linux.
 
 1. **Clone the repo**
    ```
-   git clone https://github.com/YOUR_USERNAME/aio_plus.git
+   git clone https://github.com/Stubzy7/aio_plus.git
    cd aio_plus
    ```
 
-2. **Install Python dependencies**
+2. **Set up a virtual environment**
    ```
+   python -m venv venv
+   venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+   On Linux:
+   ```
+   python3 -m venv venv
+   source venv/bin/activate
    pip install -r requirements.txt
    ```
 
@@ -59,6 +67,8 @@ AIO for **ARK: Survival Ascended** on Windows and Linux.
    ```
 
 4. **Run**
+   
+   Double-click `start.bat` or run from terminal:
    ```
    python -m aio_plus
    ```
