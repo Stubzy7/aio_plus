@@ -87,6 +87,10 @@ def name_and_spay_e_pressed(name: str):
         f"altClick=({state.ns_alt_click_x},{state.ns_alt_click_y})"
     )
     ns_log(
+        f"alt2Detect=({state.ns_alt2_radial_x},{state.ns_alt2_radial_y})  "
+        f"alt2Click=({state.ns_alt2_click_x},{state.ns_alt2_click_y})"
+    )
+    ns_log(
         f"spay=({state.ns_spay_x},{state.ns_spay_y})  "
         f"adminDetect=({state.ns_admin_pix_x},{state.ns_admin_pix_y})  "
         f"adminSpay=({state.ns_admin_spay_x},{state.ns_admin_spay_y})"
@@ -111,23 +115,34 @@ def name_and_spay_e_pressed(name: str):
     key_down("e")
     time.sleep(0.300)
 
-    alt_layout = False
+    radial_layout = "standard"
     for _ in range(20):
+        result = nf_search_tol(
+            state.ns_alt2_radial_x, state.ns_alt2_radial_y,
+            state.ns_alt2_radial_x + 1, state.ns_alt2_radial_y + 1,
+            0xFFFFFF, 10,
+        )
+        if result is not None:
+            radial_layout = "alt2"
+            break
         result = nf_search_tol(
             state.ns_alt_radial_x, state.ns_alt_radial_y,
             state.ns_alt_radial_x + 1, state.ns_alt_radial_y + 1,
             0xFFFFFF, 10,
         )
         if result is not None:
-            alt_layout = True
+            radial_layout = "alt"
             break
         time.sleep(0.020)
 
-    ns_log(f"[2] Radial wheel open — alt={'YES' if alt_layout else 'NO'}")
+    ns_log(f"[2] Radial wheel open — layout={radial_layout}")
 
-    if alt_layout:
+    if radial_layout == "alt":
         ns_log(f"[3] Alt radial — clicking ({state.ns_alt_click_x},{state.ns_alt_click_y})")
         mouse_move(state.ns_alt_click_x, state.ns_alt_click_y)
+    elif radial_layout == "alt2":
+        ns_log(f"[3] Alt2 radial — clicking ({state.ns_alt2_click_x},{state.ns_alt2_click_y})")
+        mouse_move(state.ns_alt2_click_x, state.ns_alt2_click_y)
     else:
         ns_log(f"[3] Standard radial — clicking ({state.ns_radial_x},{state.ns_radial_y})")
         mouse_move(state.ns_radial_x, state.ns_radial_y)
