@@ -61,8 +61,43 @@ def pc_wait_for_inventory(max_ms: int = 5000) -> bool:
         time.sleep(0.016)
 
 
+def pc_is_tame_inventory() -> bool:
+    # Check player inventory pixel first — if present, it's player not tame
+    px = int(state.pc_player_inv_detect_x)
+    py = int(state.pc_player_inv_detect_y)
+    pc = px_get(px, py)
+    pr = (pc >> 16) & 0xFF
+    pg = (pc >> 8) & 0xFF
+    pb = pc & 0xFF
+    epr = (state.pc_player_inv_detect_color >> 16) & 0xFF
+    epg = (state.pc_player_inv_detect_color >> 8) & 0xFF
+    epb = state.pc_player_inv_detect_color & 0xFF
+    ptol = state.pc_player_inv_detect_tol
+    if abs(pr - epr) <= ptol and abs(pg - epg) <= ptol and abs(pb - epb) <= ptol:
+        _pc_log(f"TameDetect: PLAYER inv at ({px},{py}) color=0x{pc:06X} — not tame")
+        return False
+
+    # Check tame pixel
+    x = int(state.pc_tame_detect_x)
+    y = int(state.pc_tame_detect_y)
+    color = px_get(x, y)
+    r = (color >> 16) & 0xFF
+    g = (color >> 8) & 0xFF
+    b = color & 0xFF
+    tr = (state.pc_tame_detect_color >> 16) & 0xFF
+    tg = (state.pc_tame_detect_color >> 8) & 0xFF
+    tb = state.pc_tame_detect_color & 0xFF
+    tol = state.pc_tame_detect_tol
+    matched = (abs(r - tr) <= tol and abs(g - tg) <= tol and abs(b - tb) <= tol)
+    if matched:
+        _pc_log(f"TameDetect: TAME at ({x},{y}) color=0x{color:06X}")
+    return matched
+
+
 def pc_popcorn_grid(skip_first: bool = False,
-                    is_final_cycle: bool = True) -> str:
+                    is_final_cycle: bool = True,
+                    max_drops: int = 0,
+                    drops_so_far: int = 0) -> str:
     start_x = int(state.pc_start_slot_x)
     start_y = int(state.pc_start_slot_y)
     slot_w = int(state.pc_slot_w)
@@ -74,7 +109,8 @@ def pc_popcorn_grid(skip_first: bool = False,
     _pc_log(f"Grid: dropKey={state.pc_drop_key} dropSleep={state.pc_drop_sleep} "
             f"hoverDelay={state.pc_hover_delay} skipFirst={skip_first} "
             f"isFinal={is_final_cycle} grid={cols}x{rows} "
-            f"start=({start_x},{start_y}) slotW={slot_w} slotH={slot_h}")
+            f"start=({start_x},{start_y}) slotW={slot_w} slotH={slot_h}"
+            + (f" maxDrops={max_drops} soFar={drops_so_far}" if max_drops else ""))
     _pc_log(f"Grid: abort flags at entry — earlyExit={state.pc_early_exit} "
             f"f1Abort={state.pc_f1_abort}")
 
@@ -109,6 +145,10 @@ def pc_popcorn_grid(skip_first: bool = False,
 
             key_press(state.pc_drop_key)
             drop_count += 1
+
+            if max_drops and (drops_so_far + drop_count) >= max_drops:
+                _pc_log(f"Grid: max_drops reached ({drops_so_far + drop_count}/{max_drops})")
+                return "max_reached"
 
             if state.pc_drop_sleep > 0:
                 precise_sleep(state.pc_drop_sleep)
@@ -220,7 +260,8 @@ def pc_check_storage_empty() -> int:
             cleaned = re.sub(r"[oO]", "0", raw_text)
             cleaned = re.sub(r"[Il|]", "1", cleaned)
             cleaned = re.sub(r"s(?=\d)", "5", cleaned)
-            cleaned = re.sub(r"\d+\.\d+", "", cleaned)
+            cleaned = re.sub(r"\d+\.\d+\s*/?\s*\d*\.?\d*", "", cleaned)
+            cleaned = re.sub(r"\s+", " ", cleaned)
 
             m = re.search(r"(-?\d+)\s*/\s*(\d+)", cleaned)
             if m:
@@ -228,13 +269,11 @@ def pc_check_storage_empty() -> int:
                 max_val = int(m.group(2))
                 if val < 0:
                     val = 0
-                # Suspicious zero from multi-digit string (e.g. "-200" -> 0) — retry.
-                # Single-char "o" -> "0" is accepted (could be genuine empty).
                 if val == 0 and len(m.group(1)) > 1:
                     _pc_log(f"OCR: suspicious 0 from [{m.group(1)}] raw=[{raw_text.strip()}] — retrying")
                     time.sleep(0.080)
                     continue
-                if 20 <= max_val <= 999:
+                if 6 <= max_val <= 999:
                     _pc_log(f"OCR: {val}/{max_val} raw=[{raw_text.strip()}]")
                     return val
 
@@ -258,6 +297,57 @@ def pc_check_storage_empty() -> int:
 
     _pc_log(f"OCR: no valid reading after {attempts} attempts -> -1")
     return -1
+
+
+def pc_check_weight() -> float:
+    sx = int(state.pc_weight_ocr_x)
+    sy = int(state.pc_weight_ocr_y)
+    sw = int(state.pc_weight_ocr_w)
+    sh = int(state.pc_weight_ocr_h)
+
+    attempts = 0
+    while attempts < 3:
+        attempts += 1
+        try:
+            if attempts == 1:
+                log.info("WeightOCR: region=(%d,%d %dx%d) scale=3", sx, sy, sw, sh)
+            raw_text = from_rect(sx, sy, sw, sh, scale=3)
+            cleaned = re.sub(r"[oO]", "0", raw_text)
+            cleaned = re.sub(r"[Il|]", "1", cleaned)
+            cleaned = re.sub(r"s(?=\d)", "5", cleaned)
+
+            m = re.search(r"(\d+\.?\d*)\s*/\s*(\d+\.?\d*)", cleaned)
+            if m:
+                val = float(m.group(1))
+                _pc_log(f"WeightOCR: {val}/{m.group(2)} raw=[{raw_text.strip()}]")
+                return val
+
+            _pc_log(f"WeightOCR: no match raw=[{raw_text.strip()}] cleaned=[{cleaned.strip()}]")
+
+        except Exception as exc:
+            _pc_log(f"WeightOCR: FAIL attempt {attempts} — {exc}")
+
+        time.sleep(0.080)
+
+    _pc_log(f"WeightOCR: no valid reading after {attempts} attempts -> -1")
+    return -1.0
+
+
+def pc_wait_weight_stable(timeout_s: float = 5.0) -> float:
+    last = pc_check_weight()
+    start = time.perf_counter()
+    while time.perf_counter() - start < timeout_s:
+        time.sleep(0.250)
+        cur = pc_check_weight()
+        if cur < 0:
+            continue
+        if last >= 0 and abs(cur - last) < 0.1:
+            _pc_log(f"WeightStable: settled at {cur} after "
+                    f"{(time.perf_counter() - start) * 1000:.0f}ms")
+            return cur
+        last = cur
+    _pc_log(f"WeightStable: timeout after {timeout_s}s, last={last}")
+    return last
 
 
 def pc_apply_speed():
@@ -323,7 +413,86 @@ def pc_build_tooltip() -> str:
     return f"{line1}\n{line2}\n{line3}"
 
 
-def _run_drop_loop(label: str) -> tuple[int, bool]:
+def _run_drop_loop(label: str, max_drops: int = 0) -> tuple[int, bool]:
+    is_tame = pc_is_tame_inventory()
+    state.pc_is_tame = is_tame
+
+    if is_tame:
+        return _run_drop_loop_tame(label, max_drops=max_drops)
+    return _run_drop_loop_storage(label, max_drops=max_drops)
+
+
+def pc_select_weight_region():
+    x = int(state.pc_oxy_detect_x)
+    y = int(state.pc_oxy_detect_y)
+    color = px_get(x, y)
+    r = (color >> 16) & 0xFF
+    g = (color >> 8) & 0xFF
+    b = color & 0xFF
+    er = (state.pc_oxy_detect_color >> 16) & 0xFF
+    eg = (state.pc_oxy_detect_color >> 8) & 0xFF
+    eb = state.pc_oxy_detect_color & 0xFF
+    tol = state.pc_oxy_detect_tol
+    has_oxy = (abs(r - er) <= tol and abs(g - eg) <= tol and abs(b - eb) <= tol)
+
+    if has_oxy:
+        state.pc_weight_ocr_x = state.pc_weight_o_x
+        state.pc_weight_ocr_y = state.pc_weight_o_y
+        state.pc_weight_ocr_w = state.pc_weight_o_w
+        state.pc_weight_ocr_h = state.pc_weight_o_h
+        _pc_log(f"OxyDetect: HAS oxy at ({x},{y}) color=0x{color:06X} — using has-oxy weight region")
+    else:
+        state.pc_weight_ocr_x = state.pc_weight_n_x
+        state.pc_weight_ocr_y = state.pc_weight_n_y
+        state.pc_weight_ocr_w = state.pc_weight_n_w
+        state.pc_weight_ocr_h = state.pc_weight_n_h
+        _pc_log(f"OxyDetect: NO oxy at ({x},{y}) color=0x{color:06X} — using no-oxy weight region")
+
+
+def _run_drop_loop_tame(label: str, max_drops: int = 0) -> tuple[int, bool]:
+    pc_select_weight_region()
+    _pc_log(f"DropLoop(tame): {label} — starting"
+            + (f" maxDrops={max_drops}" if max_drops else ""))
+
+    pass_num = 0
+    zero_count = 0
+    total_drops = 0
+
+    while not state.pc_early_exit and not state.pc_f1_abort:
+        pass_num += 1
+        result = pc_popcorn_grid(state.pc_forge_skip_first,
+                                 max_drops=max_drops, drops_so_far=total_drops)
+        grid_drops = int(state.pc_rows) * int(state.pc_columns)
+        if max_drops:
+            grid_drops = min(grid_drops, max_drops - total_drops)
+        total_drops += grid_drops
+
+        if result == "max_reached":
+            _pc_log(f"DropLoop(tame): max_drops reached after pass {pass_num}")
+            break
+        if state.pc_early_exit or state.pc_f1_abort:
+            _pc_log(f"DropLoop(tame): pass {pass_num} — early exit")
+            break
+
+        cur = pc_check_weight()
+        _pc_log(f"DropLoop(tame): pass {pass_num} weight={cur}")
+
+        if cur >= 0 and cur < 20.1:
+            zero_count += 1
+            if zero_count >= 2:
+                _pc_log(f"DropLoop(tame): weight<=20 (saddle only) — done")
+                pc_popcorn_top_row()
+                break
+        else:
+            zero_count = 0
+
+        precise_sleep(state.pc_cycle_sleep)
+
+    _pc_log(f"DropLoop(tame): {label} ended after {pass_num} passes, {total_drops} drops")
+    return pass_num, False
+
+
+def _run_drop_loop_storage(label: str, max_drops: int = 0) -> tuple[int, bool]:
     # Wait for inventory items to load — OCR shows -x/x or 0/x while
     # loading, then updates to the actual count once items render.
     _wait_start = time.perf_counter()
@@ -353,12 +522,22 @@ def _run_drop_loop(label: str) -> tuple[int, bool]:
     stall_count = 0
     stall_start = 0.0
     stalled = False
+    total_drops = 0
 
     STALL_MIN_SEC = 1.5
 
     while not state.pc_early_exit and not state.pc_f1_abort:
         pass_num += 1
-        pc_popcorn_grid(state.pc_forge_skip_first)
+        result = pc_popcorn_grid(state.pc_forge_skip_first,
+                                 max_drops=max_drops, drops_so_far=total_drops)
+        grid_drops = int(state.pc_rows) * int(state.pc_columns)
+        if max_drops:
+            grid_drops = min(grid_drops, max_drops - total_drops)
+        total_drops += grid_drops
+
+        if result == "max_reached":
+            _pc_log(f"DropLoop: max_drops reached after pass {pass_num}")
+            break
         if state.pc_early_exit or state.pc_f1_abort:
             _pc_log(f"DropLoop: {label} pass {pass_num} — early exit")
             break
@@ -611,6 +790,7 @@ def _pc_run_current_mode():
         _pc_log("RunCurrentMode: ARK activated — 150ms settle")
 
     state.pc_is_bag = False
+    state.pc_is_tame = False
     try:
         result = pixel_search(
             int(state.pc_bag_detect_x), int(state.pc_bag_detect_y),
@@ -829,6 +1009,14 @@ def pc_load_scan_area():
         ("StorageScanY", "pc_storage_scan_y", hm),
         ("StorageScanW", "pc_storage_scan_w", wm),
         ("StorageScanH", "pc_storage_scan_h", hm),
+        ("WeightNX", "pc_weight_n_x", wm),
+        ("WeightNY", "pc_weight_n_y", hm),
+        ("WeightNW", "pc_weight_n_w", wm),
+        ("WeightNH", "pc_weight_n_h", hm),
+        ("WeightOX", "pc_weight_o_x", wm),
+        ("WeightOY", "pc_weight_o_y", hm),
+        ("WeightOW", "pc_weight_o_w", wm),
+        ("WeightOH", "pc_weight_o_h", hm),
     ]:
         val = read_ini("Popcorn", key, "")
         if val and val != "Default":

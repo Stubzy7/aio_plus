@@ -2,10 +2,16 @@
 import configparser
 import io
 import os
+import shutil
 
 
 def _ini_path() -> str:
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "AIO_config.ini")
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "AIO_config.ini")
+    if not os.path.exists(path):
+        default = os.path.join(os.path.dirname(path), "AIO_config.default.ini")
+        if os.path.exists(default):
+            shutil.copy2(default, path)
+    return path
 
 
 def _read_parser(path: str | None = None) -> configparser.ConfigParser:

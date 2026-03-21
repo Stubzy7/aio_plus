@@ -142,7 +142,16 @@ def macro_load_all():
                 m["repeat_keys"] = [k.strip() for k in keys_raw.split(",") if k.strip()]
                 m["repeat_interval"] = int(cp.get(sec, "RepeatInterval", fallback="1000"))
                 m["repeat_spam"] = int(cp.get(sec, "RepeatSpam", fallback="0"))
-                m["repeat_movement"] = int(cp.get(sec, "RepeatMovement", fallback="1"))
+                # Popcorn attachment
+                pc_raw = cp.get(sec, "PopcornFilters", fallback="")
+                if pc_raw:
+                    m["popcorn_filters"] = []
+                    for part in pc_raw.split("|"):
+                        m["popcorn_filters"].append("" if part.strip() == "<all>" else part.strip())
+                else:
+                    m["popcorn_filters"] = []
+                m["popcorn_style"] = cp.get(sec, "PopcornStyle", fallback="all")
+                m["popcorn_drop_count"] = int(cp.get(sec, "PopcornDropCount", fallback="0"))
 
             elif m["type"] == "pyro":
                 m["speed_mult"] = float(cp.get(sec, "SpeedMult", fallback="1.0"))
@@ -157,10 +166,18 @@ def macro_load_all():
                 m["turbo"] = int(cp.get(sec, "Turbo", fallback="0"))
                 m["turbo_delay"] = int(cp.get(sec, "TurboDelay", fallback="30"))
                 m["player_search"] = int(cp.get(sec, "PlayerSearch", fallback="0"))
+                m["popcorn_all"] = int(cp.get(sec, "PopcornAll", fallback="0"))
                 filter_raw = cp.get(sec, "SearchFilters", fallback="")
                 m["search_filters"] = [f.strip() for f in filter_raw.split("|") if f.strip()] if filter_raw else []
-                evt_count = int(cp.get(sec, "EventCount", fallback="0"))
-                m["events"] = _load_events(cp, sec, evt_count)
+                g_action = cp.get(sec, "GuidedAction", fallback="")
+                if g_action:
+                    m["guided_action"] = g_action
+                    m["guided_key"] = cp.get(sec, "GuidedKey", fallback="g")
+                    m["guided_count"] = int(cp.get(sec, "GuidedCount", fallback="0"))
+                    m["events"] = _rebuild_guided_events(g_action, m["guided_count"], m["guided_key"])
+                else:
+                    evt_count = int(cp.get(sec, "EventCount", fallback="0"))
+                    m["events"] = _load_events(cp, sec, evt_count)
 
             elif m["type"] == "combo":
                 pc_raw = cp.get(sec, "PopcornFilters", fallback="")
@@ -188,6 +205,49 @@ def macro_load_all():
             _macro_log("MacroLoad: migrated to AIO_config.ini, deleted AIO_macros.ini")
         except Exception:
             pass
+
+
+def _rebuild_guided_events(action: str, count: int, key: str) -> list[dict]:
+    if action == "give":
+        start_x = int(state.pl_start_slot_x)
+        start_y = int(state.pl_start_slot_y)
+        slot_w = int(state.pl_slot_w)
+        slot_h = int(state.pl_slot_h)
+        cols = 6
+    else:
+        start_x = int(state.pc_start_slot_x)
+        start_y = int(state.pc_start_slot_y)
+        slot_w = int(state.pc_slot_w)
+        slot_h = int(state.pc_slot_h)
+        cols = int(state.pc_columns)
+    grid_size = cols * 6
+    events = []
+    if count <= 0:
+        return events
+    remaining = count
+    while remaining > 0:
+        slot = 0
+        clicked = 0
+        for row in range(6):
+            for col in range(cols):
+                slot += 1
+                if slot > remaining or slot > grid_size:
+                    break
+                x = start_x + col * slot_w
+                y = start_y + row * slot_h
+                if action == "take" or action == "give":
+                    if events:
+                        events.append({"type": "M", "x": x, "y": y, "delay": 0})
+                    events.append({"type": "C", "dir": "c", "btn": "L", "x": x, "y": y, "delay": 100})
+                    events.append({"type": "K", "dir": "p", "key": key, "delay": 60})
+                else:
+                    events.append({"type": "M", "x": x, "y": y, "delay": 0})
+                    events.append({"type": "K", "dir": "p", "key": key, "delay": 20})
+                clicked += 1
+            if slot > remaining or slot > grid_size:
+                break
+        remaining -= min(clicked, grid_size)
+    return events
 
 
 def _load_events(cp, sec: str, count: int) -> list[dict]:
@@ -256,7 +316,12 @@ def macro_save_all():
             cp.set(sec, "RepeatKeys", keys_str)
             cp.set(sec, "RepeatInterval", str(m.get("repeat_interval", 1000)))
             cp.set(sec, "RepeatSpam", str(int(m.get("repeat_spam", 0))))
-            cp.set(sec, "RepeatMovement", str(int(m.get("repeat_movement", 1))))
+            # Popcorn attachment
+            pc_list = m.get("popcorn_filters", [])
+            if pc_list:
+                cp.set(sec, "PopcornFilters", "|".join("<all>" if f == "" else f for f in pc_list))
+                cp.set(sec, "PopcornStyle", m.get("popcorn_style", "all"))
+                cp.set(sec, "PopcornDropCount", str(m.get("popcorn_drop_count", 0)))
 
         elif m["type"] == "pyro":
             cp.set(sec, "SpeedMult", f"{m.get('speed_mult', 1.0):.3f}")
@@ -271,10 +336,19 @@ def macro_save_all():
             cp.set(sec, "Turbo", str(int(m.get("turbo", 0))))
             cp.set(sec, "TurboDelay", str(m.get("turbo_delay", 30)))
             cp.set(sec, "PlayerSearch", str(int(m.get("player_search", 0))))
+            cp.set(sec, "PopcornAll", str(int(m.get("popcorn_all", 0))))
             cp.set(sec, "SearchFilters", "|".join(m.get("search_filters", [])))
-            events = m.get("events", [])
-            cp.set(sec, "EventCount", str(len(events)))
-            _save_events(cp, sec, events)
+            g_action = m.get("guided_action", "")
+            g_key = m.get("guided_key", "")
+            g_count = m.get("guided_count", 0)
+            if g_action:
+                cp.set(sec, "GuidedAction", g_action)
+                cp.set(sec, "GuidedKey", g_key)
+                cp.set(sec, "GuidedCount", str(g_count))
+            else:
+                events = m.get("events", [])
+                cp.set(sec, "EventCount", str(len(events)))
+                _save_events(cp, sec, events)
 
         elif m["type"] == "combo":
             pc_list = m.get("popcorn_filters", [])
@@ -319,9 +393,8 @@ def _macro_ensure_defaults():
             "type": "repeat",
             "hotkey": "x",
             "repeat_keys": ["rbutton", "c"],
-            "repeat_interval": 2000,
+            "repeat_interval": 0,
             "repeat_spam": 1,
-            "repeat_movement": 0,
         })
         changed = True
 
@@ -751,7 +824,7 @@ def macro_play_repeat_thread(m: dict, bg_mode: bool = False):
         return
 
     interval = m.get("repeat_interval", 1000)
-    is_spam = m.get("repeat_spam", 0)
+    is_spam = m.get("repeat_spam", 0) or interval == 0
     multi = len(keys) > 1
 
     def _check_q():
@@ -765,6 +838,27 @@ def macro_play_repeat_thread(m: dict, bg_mode: bool = False):
             _macro_log(f"RepeatPlay: Q \u2192 key #{state.macro_repeat_key_idx} '{cur}'")
             if is_spam:
                 _repeat_build_tooltip(m, keys)
+
+    has_popcorn = bool(m.get("popcorn_filters"))
+    VK_F = 0x46
+
+    _f_log_once = [False]
+    def _check_f():
+        """Poll F key — if pressed and popcorn is attached, pause repeat,
+        run popcorn sequence, then stop macro (user restarts with hotkey)."""
+        if not has_popcorn:
+            if not _f_log_once[0]:
+                _macro_log(f"RepeatPlay: _check_f — has_popcorn=False, filters={m.get('popcorn_filters')}")
+                _f_log_once[0] = True
+            return False
+        if _sys.get_async_key_state(VK_F):
+            # Wait for F release so it doesn't re-trigger
+            while _sys.get_async_key_state(VK_F) and state.macro_playing:
+                time.sleep(0.050)
+            _macro_log("RepeatPlay: F pressed — pausing for popcorn")
+            _repeat_popcorn_sequence(m)
+            return True
+        return False
 
     # ── BG left-click mode ──────────────────────────────────
     if bg_mode:
@@ -805,16 +899,24 @@ def macro_play_repeat_thread(m: dict, bg_mode: bool = False):
                     control_click(_bg_hwnd, 1, 1, activate=False)
                 time.sleep(0.016)
         else:
+            _bg_last_interval = [_bg_interval[0]]
+
+            def _bg_interval_tooltip():
+                _tooltip(
+                    f" BG Left Click: {m['name']}\n"
+                    f" [ = Slower   ] = Faster\n"
+                    f" Z = next macro  |  F1 = Stop"
+                )
+                _bg_last_interval[0] = _bg_interval[0]
+
+            _bg_interval_tooltip()
             while state.macro_playing:
-                _bg_update_tooltip(m, _bg_interval[0], False)
+                if _bg_interval[0] != _bg_last_interval[0]:
+                    _bg_interval_tooltip()
                 remaining = _bg_interval[0]
                 while remaining > 0 and state.macro_playing:
-                    secs = f"{remaining / 1000:.1f}"
-                    _tooltip(
-                        f" BG Left Click: {m['name']} in {secs}s\n"
-                        f" [ = Slower   ] = Faster\n"
-                        f" Z = next macro  |  F1 = Stop"
-                    )
+                    if _bg_interval[0] != _bg_last_interval[0]:
+                        _bg_interval_tooltip()
                     step = min(remaining, 100)
                     time.sleep(step / 1000.0)
                     remaining -= step
@@ -828,13 +930,6 @@ def macro_play_repeat_thread(m: dict, bg_mode: bool = False):
                         _bg_hwnd = find_input_child(_bg_hwnd)
                 if _bg_hwnd:
                     control_click(_bg_hwnd, 1, 1, activate=False)
-
-                _tooltip(
-                    f" BG Left Click: {m['name']} CLICKED\n"
-                    f" [ = Slower   ] = Faster\n"
-                    f" Z = next macro  |  F1 = Stop"
-                )
-                time.sleep(0.050)
 
         try:
             hk = state._hotkey_mgr
@@ -866,23 +961,28 @@ def macro_play_repeat_thread(m: dict, bg_mode: bool = False):
                 _send_macro_key(cur_key)
             time.sleep(0.016)
     else:
-        while state.macro_playing:
-            _check_q()
+        q_hint = "\n Q = next key" if multi else ""
+        _last_tip_idx = [state.macro_repeat_key_idx]
+
+        def _interval_tooltip():
             idx = state.macro_repeat_key_idx % len(keys)
             cur_key = keys[idx]
+            _tooltip(
+                f" {m['name']}: {cur_key}{q_hint}\n"
+                f" Z = next macro  |  F1 = Stop"
+            )
+            _last_tip_idx[0] = idx
 
+        _interval_tooltip()
+        while state.macro_playing:
+            _check_q()
+            if state.macro_repeat_key_idx % len(keys) != _last_tip_idx[0]:
+                _interval_tooltip()
             remaining = interval
             while remaining > 0 and state.macro_playing:
                 _check_q()
-                idx = state.macro_repeat_key_idx % len(keys)
-                cur_key = keys[idx]
-                secs = f"{remaining / 1000:.1f}"
-                move_hint = "  (move now)" if m.get("repeat_movement") else ""
-                q_hint = "\n Q = next key" if multi else ""
-                _tooltip(
-                    f" {m['name']}: {cur_key} in {secs}s{move_hint}{q_hint}\n"
-                    f" Z = next macro  |  F1 = Stop"
-                )
+                if state.macro_repeat_key_idx % len(keys) != _last_tip_idx[0]:
+                    _interval_tooltip()
                 step = min(remaining, 100)
                 time.sleep(step / 1000.0)
                 remaining -= step
@@ -895,12 +995,6 @@ def macro_play_repeat_thread(m: dict, bg_mode: bool = False):
             hwnd = win_exist(state.ark_window)
             if hwnd and get_foreground_window() == hwnd:
                 _send_macro_key(cur_key)
-
-            _tooltip(
-                f" {m['name']}: {cur_key} PRESSED\n"
-                f" Z = next macro  |  F1 = Stop"
-            )
-            time.sleep(0.050)
 
     if state.macro_active_idx == my_idx:
         state.macro_playing = False
@@ -917,11 +1011,11 @@ def _repeat_build_tooltip(m: dict, keys: list):
         arrow = " > " if i == idx else "   "
         key_list += f"\n{arrow}{k}"
     q_hint = "\n Q = next key" if len(keys) > 1 else ""
-    _tooltip(f" Spam: {cur_key}{key_list}{q_hint}\n Z = next macro  |  F1 = Stop")
+    _tooltip(f" Hold: {cur_key}{key_list}{q_hint}\n Z = next macro  |  F1 = Stop")
 
 
 def _bg_update_tooltip(m: dict, interval_ms: int, is_spam: bool):
-    mode = "Spam" if is_spam else f"Interval: {interval_ms}ms"
+    mode = "Hold" if is_spam else f"Interval: {interval_ms}ms"
     _tooltip(
         f" BG Left Click: {m['name']}  ({mode})\n"
         f" [ = Slower   ] = Faster\n"
@@ -1230,18 +1324,23 @@ def _guided_play_thread(m: dict):
             if not state.macro_playing or state.macro_active_idx != my_idx:
                 break
 
-            turbo_on = bool(m.get("turbo", 0))
-            mode_label = "SINGLE" if state.guided_single_item else ("FAST" if turbo_on else "FULL")
-            _macro_log(f"GuidedPlay: replaying ({mode_label}) {len(m.get('events', []))} events")
-
-            if state.guided_single_item:
-                _guided_replay_single(m)
-            elif turbo_on:
-                _guided_replay_fast_transfer(m)
+            if m.get("popcorn_all") and not m.get("events"):
+                _macro_log("GuidedPlay: popcornAll — running drop loop with OCR")
+                _guided_popcorn_all_loop(m)
+                _macro_log("GuidedPlay: popcornAll drop loop done")
             else:
-                _guided_replay_events(m)
+                turbo_on = bool(m.get("turbo", 0))
+                mode_label = "SINGLE" if state.guided_single_item else ("FAST" if turbo_on else "FULL")
+                _macro_log(f"GuidedPlay: replaying ({mode_label}) {len(m.get('events', []))} events")
 
-            _macro_log("GuidedPlay: replay done")
+                if state.guided_single_item:
+                    _guided_replay_single(m)
+                elif turbo_on:
+                    _guided_replay_fast_transfer(m)
+                else:
+                    _guided_replay_events(m)
+
+                _macro_log("GuidedPlay: replay done")
 
             if not state.macro_playing or state.macro_active_idx != my_idx:
                 break
@@ -1568,6 +1667,14 @@ def _guided_replay_single(m: dict):
             return
 
 
+def _guided_popcorn_all_loop(m: dict):
+    from modules.popcorn import _run_drop_loop
+    state.pc_early_exit = False
+    state.pc_f1_abort = False
+    _run_drop_loop("guided-pc", 0)
+    _macro_log("GuidedPopcornAll: drop loop done")
+
+
 def _guided_replay_fast_transfer(m: dict):
     events = m.get("events", [])
     mouse_spd = m.get("mouse_speed", 0)
@@ -1857,6 +1964,69 @@ def _combo_popcorn_drop_loop():
         time.sleep(0.005)
 
 
+def _repeat_popcorn_sequence(m: dict):
+    """Run popcorn drop sequence for a repeat macro with attached popcorn.
+
+    Waits for inventory to be open, applies filters, runs the popcorn drop
+    loop from the popcorn module (with full tame/storage/oxy detection),
+    then closes inventory.
+    """
+    from modules.popcorn import _run_drop_loop, pc_apply_filter, pc_clear_filter
+
+    pc_filters = m.get("popcorn_filters", [])
+    style = m.get("popcorn_style", "all")
+    drop_count = m.get("popcorn_drop_count", 0) if style == "amount" else 0
+
+    if not pc_filters:
+        pc_filters = [""]
+
+    _macro_log(f"RepeatPopcorn: starting — style={style} "
+               f"filters={pc_filters} dropCount={drop_count}")
+
+    # Wait for inventory to fully open
+    deadline = time.perf_counter() + 5.0
+    inv_open = False
+    while time.perf_counter() < deadline:
+        try:
+            c = pixel_get_color(state.pc_inv_detect_x, state.pc_inv_detect_y)
+            if is_color_similar(c, 0xFFFFFF, 10):
+                inv_open = True
+                break
+        except Exception:
+            pass
+        time.sleep(0.050)
+
+    if not inv_open:
+        _macro_log("RepeatPopcorn: inventory never opened — aborting")
+        return
+
+    time.sleep(0.200)
+
+    # Reset popcorn abort flags
+    state.pc_early_exit = False
+    state.pc_f1_abort = False
+
+    for i, filt in enumerate(pc_filters):
+        if state.pc_early_exit or state.pc_f1_abort:
+            break
+
+        _macro_log(f"RepeatPopcorn: filter {i + 1}/{len(pc_filters)} = '{filt or '(all)'}'")
+
+        if filt:
+            pc_apply_filter(filt)
+        elif len(pc_filters) > 1:
+            pc_clear_filter()
+
+        time.sleep(0.200)
+
+        _run_drop_loop(f"repeat-pop-{i + 1}", max_drops=drop_count)
+
+    # Close inventory
+    send("{Escape}")
+    time.sleep(0.300)
+    _macro_log("RepeatPopcorn: done — inventory closed")
+
+
 def _combo_magic_f_give():
     from input.window import control_click
     hwnd = win_exist(state.ark_window)
@@ -1971,7 +2141,10 @@ def macro_stop_play():
     state.macro_playing = False
     state.macro_active_idx = 0
     state.macro_armed = False
+    state.macro_popcorn_armed = False
+    state.macro_popcorn_macro = None
     state.combo_running = False
+    _tooltip(None)
     _macro_save_if_dirty()
 
 
@@ -1990,13 +2163,10 @@ def macro_register_hotkeys(enable: bool):
         return
 
     if enable:
-        if state.pc_mode == 0 and state.pc_f10_step == 0:
-            hk.register("z", macro_z_cycle, suppress=True)
         if state.macro_tab_active:
             hk.register("up", _macro_speed_up, suppress=True)
             hk.register("down", _macro_speed_down, suppress=True)
     else:
-        hk.unregister("z", macro_z_cycle)
         hk.unregister("up", _macro_speed_up)
         hk.unregister("down", _macro_speed_down)
 
@@ -2027,7 +2197,6 @@ def macro_block_all_hotkeys():
     except AttributeError:
         return
 
-    hk.unregister("z", macro_z_cycle)
     hk.unregister("up", _macro_speed_up)
     hk.unregister("down", _macro_speed_down)
 
@@ -2067,10 +2236,17 @@ def _macro_hotkey_handler(idx: int):
             state.macro_active_idx = 0
             state.macro_armed = True
             _macro_save_if_dirty()
+            if sel.get("popcorn_filters"):
+                state.macro_popcorn_armed = True
+                state.macro_popcorn_macro = sel
+            else:
+                state.macro_popcorn_armed = False
+                state.macro_popcorn_macro = None
             key_str = f" [{hk.upper()}]" if hk else ""
+            pc_hint = "\n F = popcorn" if sel.get("popcorn_filters") else ""
             _tooltip(
                 f" > {sel['name']} armed{key_str}\n"
-                f"{_macro_speed_hint(sel)}\n"
+                f"{_macro_speed_hint(sel)}{pc_hint}\n"
                 f" Tap to run  |  Z = next  |  F1 = disarm"
             )
         return
@@ -2140,18 +2316,14 @@ def _key_to_vk(key: str) -> int | None:
 
 
 def macro_z_cycle():
-    hwnd = win_exist(state.ark_window)
-    if not hwnd or get_foreground_window() != hwnd:
-        return
     if not state.macro_list:
-        return
-    if not state.macro_armed and not state.macro_playing:
         return
     if _macro_is_busy():
         return
 
     if state.macro_playing:
         macro_stop_play()
+        time.sleep(0.100)
 
     state.macro_selected_idx += 1
     if state.macro_selected_idx > len(state.macro_list):
@@ -2164,10 +2336,7 @@ def macro_z_cycle():
     key_str = f" [{sel.get('hotkey','').upper()}]" if sel.get("hotkey") else ""
     _macro_log(f"ZCycle: -> #{state.macro_selected_idx} '{sel['name']}' type={sel['type']}")
 
-    if sel["type"] in ("guided", "combo"):
-        macro_play_by_index(state.macro_selected_idx)
-    else:
-        _tooltip(f" > {sel['name']}{key_str}\n Press hotkey to run  |  Z = next  |  F1 = Stop")
+    _tooltip(f" > {sel['name']}{key_str}\n Press hotkey to run  |  Z = next  |  F1 = Stop")
 
 
 def _macro_speed_down():

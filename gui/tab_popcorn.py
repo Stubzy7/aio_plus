@@ -109,6 +109,7 @@ class TabPopcorn:
         self.scan_area_btn.place(x=280, y=188, width=80, height=28)
         self._scan_overlay = None
         self._scan_resize_active = False
+        self._scan_step = 0
 
         self.start_btn = tk.Button(f, text="Start", font=FONT_BOLD, fg=FG_ACCENT,
                                    bg=BG_DARK, activebackground=BG_DARK,
@@ -352,15 +353,15 @@ class TabPopcorn:
         if self._scan_resize_active:
             self._exit_scan_resize()
         else:
+            self._scan_step = 1
             self._enter_scan_resize()
 
     def _enter_scan_resize(self):
         self._scan_resize_active = True
         self.scan_area_btn.configure(text="Done")
         self._show_scan_overlay()
-
         from gui.tooltip import show_tooltip
-        show_tooltip("Scan Area: WASD=move  Arrows=resize  Enter=done")
+        show_tooltip("Storage scan area: WASD=move  Arrows=resize  Enter=done")
 
         root = state.root
         if root:
@@ -370,10 +371,10 @@ class TabPopcorn:
                 ("<s>", lambda e: self._scan_move(0, 10)),
                 ("<a>", lambda e: self._scan_move(-10, 0)),
                 ("<d>", lambda e: self._scan_move(10, 0)),
-                ("<Up>", lambda e: self._scan_resize(0, -10)),
-                ("<Down>", lambda e: self._scan_resize(0, 10)),
-                ("<Left>", lambda e: self._scan_resize(-10, 0)),
-                ("<Right>", lambda e: self._scan_resize(10, 0)),
+                ("<Up>", lambda e: self._scan_resize_step(0, -10)),
+                ("<Down>", lambda e: self._scan_resize_step(0, 10)),
+                ("<Left>", lambda e: self._scan_resize_step(-10, 0)),
+                ("<Right>", lambda e: self._scan_resize_step(10, 0)),
                 ("<Return>", lambda e: self._exit_scan_resize()),
             ]:
                 bid = root.bind(seq, handler)
@@ -381,7 +382,6 @@ class TabPopcorn:
 
     def _exit_scan_resize(self):
         self._scan_resize_active = False
-        self.scan_area_btn.configure(text="Scan Area")
         self._hide_scan_overlay()
 
         from gui.tooltip import hide_tooltip
@@ -399,17 +399,21 @@ class TabPopcorn:
         from core.config import write_ini
         wm = state.width_multiplier or 1
         hm = state.height_multiplier or 1
+
         write_ini("Popcorn", "StorageScanX", str(round(state.pc_storage_scan_x / wm)))
         write_ini("Popcorn", "StorageScanY", str(round(state.pc_storage_scan_y / hm)))
         write_ini("Popcorn", "StorageScanW", str(round(state.pc_storage_scan_w / wm)))
         write_ini("Popcorn", "StorageScanH", str(round(state.pc_storage_scan_h / hm)))
+
+        self._scan_step = 0
+        self.scan_area_btn.configure(text="Scan Area")
 
     def _scan_move(self, dx: int, dy: int):
         state.pc_storage_scan_x = max(0, state.pc_storage_scan_x + dx)
         state.pc_storage_scan_y = max(0, state.pc_storage_scan_y + dy)
         self._show_scan_overlay()
 
-    def _scan_resize(self, dw: int, dh: int):
+    def _scan_resize_step(self, dw: int, dh: int):
         state.pc_storage_scan_w = max(20, state.pc_storage_scan_w + dw)
         state.pc_storage_scan_h = max(10, state.pc_storage_scan_h + dh)
         self._show_scan_overlay()

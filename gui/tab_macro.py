@@ -14,6 +14,8 @@ def _build_guided_events(action: str, count: int, drop_key: str = "g") -> list[d
     grid_size = cols * 6
 
     events = []
+    if count <= 0:
+        return events
     remaining = count
     while remaining > 0:
         slot = 0
@@ -192,10 +194,11 @@ class TabMacro:
         dlg.attributes("-topmost", True)
         dlg.resizable(False, False)
         sx = dlg.winfo_screenwidth()
-        sy = dlg.winfo_screenheight()
-        x = (sx - w) // 2
-        y = (sy - h) // 2
-        dlg.geometry(f"{w}x{h}+{x}+{y}")
+        px = 177 + 450 + 10
+        py = 330
+        if px + w > sx:
+            px = max(0, 177 - w - 10)
+        dlg.geometry(f"{w}x{h}+{px}+{py}")
         return dlg
 
     _bind_excluded = {"shift_l", "shift_r", "control_l", "control_r",
@@ -235,21 +238,25 @@ class TabMacro:
         bind_ids.append(("<Button-3>", dlg.bind("<Button-3>", on_mouse)))
 
     def _repeat_new(self):
-        dlg = self._make_dlg("New Key Repeat", 270, 240)
+        dlg = self._make_dlg("Key Repeat", 350, 416)
         key_list: list[str] = []
+        pad_x = 16
+        y = 16
 
-        tk.Label(dlg, text="New Key Repeat", bg=BG_DARK, fg=FG_ACCENT,
-                 font=FONT_BOLD).place(x=15, y=10, width=190)
+        tk.Label(dlg, text="Key Repeat", bg=BG_DARK, fg=FG_ACCENT,
+                 font=FONT_BOLD).place(x=pad_x, y=y)
+        y += 30
 
         tk.Label(dlg, text="Name:", bg=BG_DARK, fg=FG_COLOR,
-                 font=FONT_DEFAULT).place(x=15, y=42, width=55)
+                 font=FONT_DEFAULT).place(x=pad_x, y=y)
         name_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-        name_edit.place(x=75, y=42, width=165, height=24)
+        name_edit.place(x=130, y=y, width=190, height=24)
+        y += 30
 
         tk.Label(dlg, text="Keys:", bg=BG_DARK, fg=FG_COLOR,
-                 font=FONT_DEFAULT).place(x=15, y=72, width=55)
+                 font=FONT_DEFAULT).place(x=pad_x, y=y)
         key_display = tk.Entry(dlg, font=FONT_DEFAULT, state="readonly")
-        key_display.place(x=75, y=72, width=100, height=24)
+        key_display.place(x=130, y=y, width=120, height=24)
 
         _excluded_keys = {"shift_l", "shift_r", "control_l", "control_r",
                           "alt_l", "alt_r", "escape", "caps_lock", "tab",
@@ -298,207 +305,464 @@ class TabMacro:
             key_display.configure(state="readonly")
 
         tk.Button(dlg, text="Add", font=FONT_SMALL, fg=FG_COLOR, bg=BG_COLOR,
-                  command=_add_key).place(x=180, y=72, width=35, height=24)
+                  command=_add_key).place(x=260, y=y, width=35, height=24)
         tk.Button(dlg, text="X", font=FONT_SMALL, fg=FG_COLOR, bg=BG_COLOR,
-                  command=_clear_keys).place(x=218, y=72, width=22, height=24)
+                  command=_clear_keys).place(x=298, y=y, width=22, height=24)
+        y += 24
         tk.Label(dlg, text="Q cycles between keys during play", bg=BG_DARK,
-                 fg=FG_DIM, font=FONT_SMALL_ITALIC).place(x=75, y=97, width=180)
+                 fg=FG_DIM, font=FONT_SMALL_ITALIC).place(x=130, y=y)
+        y += 22
 
-        tk.Label(dlg, text="Every:", bg=BG_DARK, fg=FG_COLOR,
-                 font=FONT_DEFAULT).place(x=15, y=114, width=55)
+        tk.Label(dlg, text="Interval (ms):", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=pad_x, y=y)
         interval_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-        interval_edit.insert(0, "2000")
-        interval_edit.place(x=75, y=114, width=65, height=24)
-        tk.Label(dlg, text="ms", bg=BG_DARK, fg=FG_DIM,
-                 font=FONT_SMALL).place(x=145, y=114, width=20)
-
-        spam_var = tk.BooleanVar()
-        move_var = tk.BooleanVar(value=True)
-        def _spam_toggle():
-            if spam_var.get():
-                move_var.set(False)
-        def _move_toggle():
-            if move_var.get():
-                spam_var.set(False)
-        tk.Checkbutton(dlg, text="Spam", variable=spam_var,
-                       command=_spam_toggle, **CB_OPTS).place(x=15, y=142, width=70)
-        tk.Checkbutton(dlg, text="Move between", variable=move_var,
-                       command=_move_toggle, **CB_OPTS).place(x=90, y=142, width=120)
+        interval_edit.insert(0, "600")
+        interval_edit.place(x=130, y=y, width=65, height=24)
+        tk.Label(dlg, text="(0 = hold)", bg=BG_DARK, fg=FG_DIM,
+                 font=FONT_SMALL).place(x=200, y=y + 2)
+        y += 30
 
         tk.Label(dlg, text="Bind:", bg=BG_DARK, fg=FG_COLOR,
-                 font=FONT_DEFAULT).place(x=15, y=170, width=55)
+                 font=FONT_DEFAULT).place(x=pad_x, y=y)
         bind_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-        bind_edit.place(x=75, y=170, width=100, height=24)
+        bind_edit.place(x=130, y=y, width=80, height=24)
         tk.Button(dlg, text="Detect", font=FONT_SMALL, fg=FG_COLOR, bg=BG_COLOR,
                   command=lambda: self._detect_key_into(dlg, bind_edit)
-                  ).place(x=180, y=170, width=60, height=24)
+                  ).place(x=215, y=y, width=60, height=24)
+        y += 34
+
+        tk.Frame(dlg, bg="#333333", height=1).place(x=pad_x, y=y, width=318)
+        y += 8
+
+        pc_var = tk.BooleanVar(value=False)
+        pc_check = tk.Checkbutton(dlg, text="Popcorn after repeat",
+                                  variable=pc_var, bg=BG_DARK, fg=FG_COLOR,
+                                  selectcolor=BG_DARK, activebackground=BG_DARK,
+                                  activeforeground=FG_COLOR, font=FONT_DEFAULT,
+                                  anchor="w")
+        pc_check.place(x=pad_x, y=y)
+        y += 26
+
+        pc_frame = tk.Frame(dlg, bg=BG_DARK)
+        tk.Label(pc_frame, text="Drop count:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=0, y=0)
+        pc_drop_var = tk.StringVar(value="0")
+        tk.Entry(pc_frame, textvariable=pc_drop_var, width=6,
+                 font=FONT_DEFAULT).place(x=114, y=0)
+        tk.Label(pc_frame, text="(0 = all)", bg=BG_DARK, fg=FG_DIM,
+                 font=FONT_SMALL).place(x=170, y=2)
+
+        tk.Label(pc_frame, text="Drop key:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=0, y=28)
+        dk = getattr(state, "pc_drop_key", "") or "?"
+        pc_drop_key_lbl = tk.Label(pc_frame, text=dk.upper(),
+                                   bg=BG_DARK, fg=FG_ACCENT, font=FONT_BOLD,
+                                   anchor="w")
+        pc_drop_key_lbl.place(x=114, y=28)
+        pc_frame_y = y
+
+        save_btn = tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT,
+                             bg=BG_COLOR)
+        cancel_btn = tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
+                               bg=BG_COLOR, command=dlg.destroy)
+
+        def _toggle_pc(*_):
+            if pc_var.get():
+                pc_drop_key_lbl.configure(
+                    text=(getattr(state, "pc_drop_key", "") or "?").upper())
+                pc_frame.place(x=pad_x + 16, y=pc_frame_y,
+                               width=302, height=60)
+                btn_y = pc_frame_y + 66
+            else:
+                pc_frame.place_forget()
+                btn_y = pc_frame_y + 4
+            save_btn.place(x=pad_x, y=btn_y, width=100, height=26)
+            cancel_btn.place(x=200, y=btn_y, width=100, height=26)
+            dlg.geometry(f"350x{btn_y + 42}")
 
         def _save():
             n = name_edit.get().strip()
             if not n or not key_list:
                 return
+            interval = int(interval_edit.get() or 600)
             m = {
                 "name": n,
                 "type": "repeat",
                 "hotkey": bind_edit.get().strip().lower(),
                 "repeat_keys": list(key_list),
-                "repeat_interval": int(interval_edit.get() or 2000),
-                "repeat_spam": int(spam_var.get()),
-                "repeat_movement": int(move_var.get()),
+                "repeat_interval": interval,
+                "repeat_spam": int(interval == 0),
+                "popcorn_filters": [],
+                "popcorn_style": "all",
+                "popcorn_drop_count": 0,
             }
+            if pc_var.get():
+                dc = int(pc_drop_var.get() or 0)
+                m["popcorn_filters"] = [""]
+                m["popcorn_style"] = "all" if dc == 0 else "amount"
+                m["popcorn_drop_count"] = dc
             state.macro_list.append(m)
             from modules.macro_system import macro_save_all
             macro_save_all()
             self._refresh_list()
             dlg.destroy()
 
-        tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT, bg=BG_COLOR,
-                  command=_save).place(x=15, y=202, width=100, height=26)
-        tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR, bg=BG_COLOR,
-                  command=dlg.destroy).place(x=120, y=202, width=100, height=26)
+        save_btn.configure(command=_save)
+        pc_var.trace_add("write", _toggle_pc)
+        _toggle_pc()
 
-    def _guided_start(self):
-        wizard_data = {"inv_type": "vault", "action_type": "take"}
+    def _repeat_popcorn_wizard(self, m: dict):
+        """Popcorn attachment wizard for repeat macros.
+        Step 1: Add Popcorn? (Yes / Skip)
+        Step 2: Style (Drop All / Drop Amount)
+        Step 3: Filter count
+        Step 4: Filter names (if count > 0)
+        Step 5: Drop count (if style = amount)
+        Then finalize save.
+        """
+        pc_data: dict = {}
 
-        def _step1():
-            dlg = self._make_dlg("Guided Macro \u2014 Step 1", 280, 180)
-            tk.Label(dlg, text="What type of inventory?", bg=BG_DARK,
-                     fg=FG_ACCENT, font=FONT_BOLD).place(x=15, y=15, width=250)
-            tk.Label(dlg, text="Used for pixel detection to find open/close state",
+        def _finalize():
+            m["popcorn_filters"] = pc_data.get("popcorn_filters", [])
+            m["popcorn_style"] = pc_data.get("popcorn_style", "all")
+            m["popcorn_drop_count"] = pc_data.get("popcorn_drop_count", 0)
+            state.macro_list.append(m)
+            from modules.macro_system import macro_save_all
+            macro_save_all()
+            self._refresh_list()
+
+        def _step_ask():
+            dlg = self._make_dlg("Key Repeat \u2014 Popcorn", 280, 130)
+            tk.Label(dlg, text="Add Popcorn?", bg=BG_DARK, fg=FG_ACCENT,
+                     font=FONT_BOLD).place(x=15, y=10, width=250)
+            tk.Label(dlg, text="F during repeat will open inventory & popcorn",
                      bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC
-                     ).place(x=15, y=40, width=250)
+                     ).place(x=15, y=35, width=250)
 
-            inv_combo = ttk.Combobox(dlg, values=["Vault/Forge/Non-craft", "Crafting", "Player Inventory"],
-                                     state="readonly", font=FONT_DEFAULT)
-            inv_combo.set("Vault/Forge/Non-craft")
-            inv_combo.place(x=15, y=70, width=200, height=24)
-
-            def _next():
-                wizard_data["inv_type"] = inv_combo.get().lower().split()[0]
+            def _yes():
                 dlg.destroy()
-                _step2()
+                _step_style()
 
-            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_next).place(x=15, y=110, width=100, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=110, width=100, height=26)
-
-        def _step2():
-            dlg = self._make_dlg("Guided Macro \u2014 Action Type", 280, 200)
-            tk.Label(dlg, text="What should this macro do?", bg=BG_DARK,
-                     fg=FG_ACCENT, font=FONT_BOLD).place(x=15, y=15, width=250)
-
-            is_player = wizard_data["inv_type"] == "player"
-            if is_player:
-                actions = ["Give", "Popcorn", "Record"]
-                hint = "Give: transfer to container\nPopcorn: hover+drop  |  Record: manual capture"
-            else:
-                actions = ["Take", "Popcorn", "Record"]
-                hint = "Take: click+T  |  Popcorn: hover+drop\nRecord: manual capture"
-
-            tk.Label(dlg, text=hint,
-                     bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC, justify="left"
-                     ).place(x=15, y=40, width=250, height=30)
-
-            action_combo = ttk.Combobox(
-                dlg, values=actions,
-                state="readonly", font=FONT_DEFAULT)
-            action_combo.set(actions[0])
-            action_combo.place(x=15, y=80, width=200, height=24)
-
-            def _next():
-                wizard_data["action_type"] = action_combo.get().lower()
+            def _skip():
                 dlg.destroy()
-                if wizard_data["action_type"] == "give":
-                    _step_give_setup()
-                elif wizard_data["action_type"] == "popcorn":
-                    if getattr(state, "pc_drop_key", ""):
-                        _step_setup()
-                    else:
-                        _step_drop_key_prompt()
-                elif wizard_data["action_type"] == "take":
-                    _step_setup()
-                else:
-                    _step_record_filters()
+                _finalize()
 
-            def _back():
-                dlg.destroy()
-                _step1()
+            tk.Button(dlg, text="Yes", font=FONT_BOLD, fg=FG_ACCENT,
+                      bg=BG_COLOR, command=_yes).place(x=15, y=75, width=100, height=26)
+            tk.Button(dlg, text="Skip", font=FONT_BOLD, fg=FG_COLOR,
+                      bg=BG_COLOR, command=_skip).place(x=120, y=75, width=100, height=26)
 
-            tk.Button(dlg, text="\u2190 Back", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=_back).place(x=15, y=130, width=80, height=26)
-            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_next).place(x=100, y=130, width=80, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=185, y=130, width=80, height=26)
-
-        def _step_drop_key_prompt():
-            dlg = self._make_dlg("Guided Macro \u2014 Drop Key", 300, 170)
-            tk.Label(dlg, text="Confirm Drop Key", bg=BG_DARK, fg=FG_ACCENT,
+        def _step_style():
+            dlg = self._make_dlg("Key Repeat \u2014 Popcorn Style", 300, 140)
+            tk.Label(dlg, text="Popcorn Style", bg=BG_DARK, fg=FG_ACCENT,
                      font=FONT_BOLD).place(x=15, y=10, width=270)
-            tk.Label(dlg, text="Your ARK drop keybind must match this key:",
+            tk.Label(dlg, text="Drop All = empty inventory. Drop Amount = set number.",
                      bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC
                      ).place(x=15, y=35, width=270)
 
-            drop_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            drop_edit.insert(0, getattr(state, "pc_drop_key", "g"))
-            drop_edit.place(x=15, y=65, width=80, height=24)
-
-            def _confirm():
-                dk = drop_edit.get().strip()
-                if dk:
-                    state.pc_drop_key = dk
-                    from core.config import write_ini
-                    write_ini("Popcorn", "DropKey", dk)
+            def _all():
+                pc_data["popcorn_style"] = "all"
                 dlg.destroy()
-                _step_setup()
+                _step_filter_count()
 
-            def _back():
+            def _amount():
+                pc_data["popcorn_style"] = "amount"
                 dlg.destroy()
-                _step2()
+                _step_filter_count()
 
-            tk.Button(dlg, text="\u2190 Back", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=_back).place(x=15, y=110, width=80, height=26)
-            tk.Button(dlg, text="Confirm \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_confirm).place(x=100, y=110, width=100, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=205, y=110, width=80, height=26)
+            tk.Button(dlg, text="Drop All", font=FONT_BOLD, fg=FG_ACCENT,
+                      bg=BG_COLOR, command=_all).place(x=15, y=85, width=120, height=26)
+            tk.Button(dlg, text="Drop Amount", font=FONT_BOLD, fg=FG_ACCENT,
+                      bg=BG_COLOR, command=_amount).place(x=145, y=85, width=120, height=26)
 
-        def _step_give_setup():
-            dlg = self._make_dlg("Guided Macro \u2014 Give Setup", 320, 250)
-            tk.Label(dlg, text="Give Setup", bg=BG_DARK, fg=FG_ACCENT,
+        def _step_filter_count():
+            dlg = self._make_dlg("Key Repeat \u2014 Popcorn Filters", 320, 150)
+            tk.Label(dlg, text="Popcorn Filters", bg=BG_DARK, fg=FG_ACCENT,
                      font=FONT_BOLD).place(x=15, y=10, width=280)
-            tk.Label(dlg, text="Items to transfer:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=45, width=130)
-            count_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            count_edit.insert(0, "36")
-            count_edit.place(x=150, y=45, width=50, height=24)
-
-            tk.Label(dlg, text="Search filter:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=78, width=100)
-            filter_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            filter_edit.place(x=120, y=78, width=170, height=24)
-
-            tk.Label(dlg, text="First slot skipped without filter (implant)",
+            tk.Label(dlg, text="How many search filters? (0 = no filter, drop all items)",
                      bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC
-                     ).place(x=15, y=105, width=280)
+                     ).place(x=15, y=35, width=280)
+            tk.Label(dlg, text="Count:", bg=BG_DARK, fg=FG_COLOR,
+                     font=FONT_DEFAULT).place(x=15, y=70, width=55)
+            count_edit = tk.Entry(dlg, font=FONT_DEFAULT)
+            count_edit.insert(0, "0")
+            count_edit.place(x=75, y=70, width=50, height=24)
 
-            tk.Label(dlg, text="Name:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=130, width=55)
-            name_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            name_edit.place(x=75, y=130, width=215, height=24)
+            def _next():
+                c = int(count_edit.get() or 0)
+                pc_data["filter_count"] = c
+                dlg.destroy()
+                if c > 0:
+                    _step_filter_names(c)
+                else:
+                    pc_data["popcorn_filters"] = [""]
+                    if pc_data.get("popcorn_style") == "amount":
+                        _step_drop_count()
+                    else:
+                        _finalize()
 
-            def _save():
-                n = name_edit.get().strip()
-                if not n:
-                    return
-                count = int(count_edit.get() or 36)
+            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
+                      bg=BG_COLOR, command=_next).place(x=15, y=105, width=100, height=26)
+            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
+                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=105, width=100, height=26)
+
+        def _step_filter_names(count: int):
+            h = 90 + count * 28 + 40
+            dlg = self._make_dlg("Key Repeat \u2014 Filter Names", 350, h)
+            tk.Label(dlg, text="Popcorn Filter Names", bg=BG_DARK, fg=FG_ACCENT,
+                     font=FONT_BOLD).place(x=15, y=10, width=300)
+            edits = []
+            for i in range(count):
+                y = 40 + i * 28
+                tk.Label(dlg, text=f"Filter {i+1}:", bg=BG_DARK, fg=FG_COLOR,
+                         font=FONT_DEFAULT).place(x=15, y=y, width=70)
+                e = tk.Entry(dlg, font=FONT_DEFAULT)
+                e.place(x=90, y=y, width=230, height=24)
+                edits.append(e)
+
+            btn_y = 40 + count * 28 + 10
+
+            def _next():
+                pc_data["popcorn_filters"] = [
+                    e.get().strip() or "" for e in edits
+                ]
+                dlg.destroy()
+                if pc_data.get("popcorn_style") == "amount":
+                    _step_drop_count()
+                else:
+                    _finalize()
+
+            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
+                      bg=BG_COLOR, command=_next).place(x=15, y=btn_y, width=100, height=26)
+            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
+                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=btn_y, width=100, height=26)
+
+        def _step_drop_count():
+            dlg = self._make_dlg("Key Repeat \u2014 Drop Amount", 300, 140)
+            tk.Label(dlg, text="Drops Per Filter", bg=BG_DARK, fg=FG_ACCENT,
+                     font=FONT_BOLD).place(x=15, y=10, width=270)
+            tk.Label(dlg, text="How many items to drop per filter?",
+                     bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC
+                     ).place(x=15, y=35, width=270)
+            tk.Label(dlg, text="Drops:", bg=BG_DARK, fg=FG_COLOR,
+                     font=FONT_DEFAULT).place(x=15, y=65, width=55)
+            drop_edit = tk.Entry(dlg, font=FONT_DEFAULT)
+            drop_edit.insert(0, "10")
+            drop_edit.place(x=75, y=65, width=60, height=24)
+
+            def _done():
+                pc_data["popcorn_drop_count"] = int(drop_edit.get() or 10)
+                dlg.destroy()
+                _finalize()
+
+            tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT,
+                      bg=BG_COLOR, command=_done).place(x=15, y=100, width=100, height=26)
+            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
+                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=100, width=100, height=26)
+
+        _step_ask()
+
+
+    def _guided_start(self):
+        INV_TYPES = ["Vault", "Player Inventory", "Crafting"]
+        dlg = self._make_dlg("Guided Macro", 350, 300)
+        pad_x = 16
+        y = 16
+
+        tk.Label(dlg, text="Guided Macro", bg=BG_DARK, fg=FG_ACCENT,
+                 font=FONT_BOLD).place(x=pad_x, y=y)
+        y += 28
+
+        tk.Label(dlg, text="Inventory:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=pad_x, y=y, width=100)
+        inv_var = tk.StringVar(value=INV_TYPES[0])
+        inv_cb = ttk.Combobox(dlg, textvariable=inv_var, values=INV_TYPES,
+                              state="readonly", width=20, font=FONT_DEFAULT)
+        inv_cb.place(x=130, y=y)
+
+        craft_hint = tk.Label(dlg, text="drop/take \u2014 craft tab to craft",
+                              bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC)
+        y += 28
+
+        tk.Label(dlg, text="Action:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=pad_x, y=y, width=100)
+        action_var = tk.StringVar(value="Popcorn")
+        action_cb = ttk.Combobox(dlg, textvariable=action_var,
+                                 values=["Popcorn", "Take"],
+                                 state="readonly", width=20, font=FONT_DEFAULT)
+        action_cb.place(x=130, y=y)
+        y += 32
+
+        sep_y = y
+        tk.Frame(dlg, bg="#333333", height=1).place(x=pad_x, y=sep_y, width=318)
+        field_y = sep_y + 8
+
+        # ── Take/Give fields ──
+        take_frame = tk.Frame(dlg, bg=BG_DARK)
+        tk.Label(take_frame, text="Count:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=0, y=0)
+        count_var = tk.StringVar(value="0")
+        tk.Entry(take_frame, textvariable=count_var, width=6,
+                 font=FONT_DEFAULT).place(x=114, y=0)
+        tk.Label(take_frame, text="(0 = all)", bg=BG_DARK, fg=FG_DIM,
+                 font=FONT_SMALL).place(x=170, y=2)
+        tk.Label(take_frame, text="Search filter:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=0, y=28)
+        take_filter_var = tk.StringVar()
+        tk.Entry(take_frame, textvariable=take_filter_var, width=16,
+                 font=FONT_DEFAULT).place(x=114, y=28)
+        tk.Label(take_frame, text="(blank = no filter)", bg=BG_DARK, fg=FG_DIM,
+                 font=FONT_SMALL).place(x=114, y=50)
+
+        # ── Popcorn fields ──
+        pop_frame = tk.Frame(dlg, bg=BG_DARK)
+        tk.Label(pop_frame, text="Drop count:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=0, y=0)
+        drop_count_var = tk.StringVar(value="0")
+        tk.Entry(pop_frame, textvariable=drop_count_var, width=6,
+                 font=FONT_DEFAULT).place(x=114, y=0)
+        tk.Label(pop_frame, text="(0 = all)", bg=BG_DARK, fg=FG_DIM,
+                 font=FONT_SMALL).place(x=170, y=2)
+        tk.Label(pop_frame, text="Drop key:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=0, y=28)
+        drop_key_lbl = tk.Label(pop_frame,
+                                text=(getattr(state, "pc_drop_key", "") or "?").upper(),
+                                bg=BG_DARK, fg=FG_ACCENT, font=FONT_BOLD, anchor="w")
+        drop_key_lbl.place(x=114, y=28)
+        tk.Label(pop_frame, text="Search filter:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=0, y=56)
+        pop_filter_var = tk.StringVar()
+        tk.Entry(pop_frame, textvariable=pop_filter_var, width=16,
+                 font=FONT_DEFAULT).place(x=114, y=56)
+        tk.Label(pop_frame, text="(blank = no filter)", bg=BG_DARK, fg=FG_DIM,
+                 font=FONT_SMALL).place(x=114, y=78)
+
+        # ── Name + buttons (dynamic position) ──
+        bottom_sep = tk.Frame(dlg, bg="#333333", height=1)
+        name_lbl = tk.Label(dlg, text="Name:", bg=BG_DARK, fg=FG_COLOR,
+                            font=FONT_DEFAULT)
+        name_var = tk.StringVar()
+        name_entry = tk.Entry(dlg, textvariable=name_var, width=26, font=FONT_DEFAULT)
+        save_btn = tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT,
+                             bg=BG_COLOR, command=lambda: _save())
+        cancel_btn = tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
+                               bg=BG_COLOR, command=dlg.destroy)
+
+        frame_heights = {"take": 66, "popcorn": 100}
+
+        def _place_bottom(action_key):
+            h = frame_heights.get(action_key, 94)
+            by = field_y + h + 4
+            bottom_sep.place(x=pad_x, y=by, width=318)
+            name_lbl.place(x=pad_x, y=by + 8)
+            name_entry.place(x=130, y=by + 8)
+            save_btn.place(x=pad_x, y=by + 40, width=100, height=26)
+            cancel_btn.place(x=200, y=by + 40, width=100, height=26)
+            dlg.geometry(f"350x{by + 76}")
+
+        user_edited_name = [False]
+        name_entry.bind("<Key>", lambda *_: user_edited_name.__setitem__(0, True))
+
+        def _gen_auto_name():
+            action = action_var.get()
+            inv = inv_var.get()
+            display_inv = "Player" if inv == "Player Inventory" else inv
+            if action in ("Take", "Give"):
+                c = count_var.get()
+                unit = f" {c}" if c and c != "0" else ""
+                return f"{display_inv} {action}{unit}"
+            elif action == "Popcorn":
+                c = drop_count_var.get()
+                unit = f" {c}" if c and c != "0" else ""
+                return f"{display_inv} Popcorn{unit}"
+            return ""
+
+        def _update_name(*_):
+            if not user_edited_name[0]:
+                name_var.set(_gen_auto_name())
+
+        def _prompt_drop_key_if_needed():
+            dk = getattr(state, "pc_drop_key", "")
+            if not dk:
+                _dk_dlg = self._make_dlg("Drop Key Not Set", 340, 130)
+                tk.Label(_dk_dlg, text="Set your ARK drop keybind:",
+                         bg=BG_DARK, fg=FG_ACCENT, font=FONT_BOLD).place(x=20, y=10)
+                dk_edit = tk.Entry(_dk_dlg, font=FONT_DEFAULT)
+                dk_edit.insert(0, "g")
+                dk_edit.place(x=20, y=45, width=80, height=24)
+
+                def _dk_save():
+                    val = dk_edit.get().strip().lower()
+                    if not val:
+                        return
+                    state.pc_drop_key = val
+                    from core.config import write_ini
+                    write_ini("Popcorn", "DropKey", val)
+                    drop_key_lbl.configure(text=val.upper())
+                    _dk_dlg.destroy()
+
+                tk.Button(_dk_dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT,
+                          bg=BG_COLOR, command=_dk_save
+                          ).place(x=20, y=90, width=140, height=28)
+                tk.Button(_dk_dlg, text="Cancel", font=FONT_DEFAULT, fg=FG_DIM,
+                          bg=BG_COLOR, command=_dk_dlg.destroy
+                          ).place(x=180, y=90, width=140, height=28)
+
+        def _update_fields(*_):
+            action = action_var.get()
+            take_frame.place_forget()
+            pop_frame.place_forget()
+            if action in ("Take", "Give"):
+                take_frame.place(x=pad_x, y=field_y, width=318, height=66)
+                _place_bottom("take")
+            elif action == "Popcorn":
+                _prompt_drop_key_if_needed()
+                drop_key_lbl.configure(
+                    text=(getattr(state, "pc_drop_key", "") or "?").upper())
+                pop_frame.place(x=pad_x, y=field_y, width=318, height=100)
+                _place_bottom("popcorn")
+            _update_name()
+
+        def _on_inv_change(*_):
+            inv = inv_var.get()
+            if inv == "Crafting":
+                craft_hint.place(x=130, y=17)
+            else:
+                craft_hint.place_forget()
+            if inv == "Player Inventory":
+                action_cb.configure(values=["Give", "Popcorn"], state="readonly")
+                if action_var.get() not in ("Give", "Popcorn"):
+                    action_var.set("Give")
+            else:
+                action_cb.configure(values=["Popcorn", "Take"],
+                                    state="readonly")
+                if action_var.get() == "Give":
+                    action_var.set("Popcorn")
+            _update_fields()
+
+        action_cb.bind("<<ComboboxSelected>>", _update_fields)
+        inv_cb.bind("<<ComboboxSelected>>", _on_inv_change)
+        count_var.trace_add("write", _update_name)
+        drop_count_var.trace_add("write", _update_name)
+        _update_fields()
+
+        def _save():
+            action = action_var.get().lower()
+            inv = inv_var.get()
+            inv_map = {"vault": "vault", "player inventory": "player",
+                       "crafting": "crafting"}
+            inv_type = inv_map.get(inv.lower(), "vault")
+            n = name_var.get().strip()
+            if not n:
+                return
+
+            if action == "give":
+                count = int(count_var.get() or 0)
                 if count < 1:
                     count = 1
-                filt = filter_edit.get().strip()
+                filt = take_filter_var.get().strip()
                 has_filter = bool(filt)
                 skip_first = not has_filter
-
                 events = []
                 remaining = count
                 while remaining > 0:
@@ -514,214 +778,103 @@ class TabMacro:
                             x = int(state.pl_start_slot_x + col * state.pl_slot_w)
                             y = int(state.pl_start_slot_y + row * state.pl_slot_h)
                             if events:
-                                events.append({"type": "M", "x": x, "y": y, "delay": 0})
+                                events.append({"type": "M", "x": x, "y": y,
+                                               "delay": 0})
                             events.append({"type": "C", "dir": "c", "btn": "L",
                                            "x": x, "y": y, "delay": 100})
-                            events.append({"type": "K", "dir": "p", "key": "t", "delay": 60})
+                            events.append({"type": "K", "dir": "p", "key": "t",
+                                           "delay": 60})
                             clicked += 1
                         if clicked >= remaining:
                             break
                     remaining -= clicked
-
                 m = {
-                    "name": n, "type": "guided", "hotkey": "f",
+                    "name": n, "type": "guided", "hotkey": "",
                     "speed_mult": 1.0, "loop_enabled": False,
-                    "inv_type": wizard_data["inv_type"],
+                    "inv_type": inv_type,
                     "mouse_speed": 0, "mouse_settle": 1,
                     "inv_load_delay": 500, "turbo": 1, "turbo_delay": 1,
                     "player_search": 1,
+                    "guided_action": "give", "guided_key": "t",
+                    "guided_count": count,
                     "search_filters": [filt] if filt else [],
                     "events": events,
                 }
-                state.macro_list.append(m)
-                from modules.macro_system import macro_save_all
-                macro_save_all()
-                self._refresh_list()
-                dlg.destroy()
-
-            def _back():
-                dlg.destroy()
-                _step2()
-
-            tk.Button(dlg, text="\u2190 Back", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=_back).place(x=15, y=175, width=80, height=26)
-            tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_save).place(x=100, y=175, width=80, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=185, y=175, width=80, height=26)
-
-        def _step_setup():
-            action = wizard_data["action_type"]
-            title = "Take Setup" if action == "take" else "Popcorn Setup"
-            dlg = self._make_dlg(f"Guided Macro \u2014 {title}", 320, 230)
-
-            label = "Items to transfer:" if action == "take" else "Items to drop:"
-            default_count = "3" if action == "take" else "36"
-
-            tk.Label(dlg, text=title, bg=BG_DARK, fg=FG_ACCENT,
-                     font=FONT_BOLD).place(x=15, y=10, width=280)
-            tk.Label(dlg, text=label, bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=45, width=150)
-            count_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            count_edit.insert(0, default_count)
-            count_edit.place(x=170, y=45, width=50, height=24)
-
-            if action == "popcorn":
-                tk.Label(dlg, text="Drop key:", bg=BG_DARK, fg=FG_COLOR,
-                         font=FONT_DEFAULT).place(x=15, y=75, width=80)
-                drop_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-                drop_edit.insert(0, getattr(state, "pc_drop_key", "g"))
-                drop_edit.place(x=100, y=75, width=50, height=24)
-                tk.Label(dlg, text="blank = all", bg=BG_DARK, fg=FG_DIM,
-                         font=FONT_DEFAULT).place(x=200, y=75, width=90)
-                filter_y = 105
-            else:
-                drop_edit = None
-                filter_y = 75
-
-            tk.Label(dlg, text="Search filter:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=filter_y, width=100)
-            filter_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            filter_edit.place(x=120, y=filter_y, width=170, height=24)
-
-            name_y = filter_y + 32
-            tk.Label(dlg, text="Name:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=name_y, width=55)
-            name_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            name_edit.place(x=75, y=name_y, width=215, height=24)
-
-            btn_y = name_y + 38
-            def _save():
-                n = name_edit.get().strip()
-                if not n:
-                    return
-                count = int(count_edit.get() or default_count)
-                filt = filter_edit.get().strip()
-                events = _build_guided_events(
-                    action, count,
-                    drop_key=drop_edit.get().strip() if drop_edit else "g",
-                )
+            elif action == "popcorn":
+                count = int(drop_count_var.get() or 0)
+                filt = pop_filter_var.get().strip()
+                dk = getattr(state, "pc_drop_key", "g") or "g"
+                events = _build_guided_events("popcorn", count, drop_key=dk)
                 m = {
-                    "name": n, "type": "guided", "hotkey": "f",
-                    "speed_mult": 1.0, "loop_enabled": action == "popcorn",
-                    "inv_type": wizard_data["inv_type"],
+                    "name": n, "type": "guided", "hotkey": "",
+                    "speed_mult": 1.0, "loop_enabled": True,
+                    "inv_type": inv_type,
                     "mouse_speed": 0, "mouse_settle": 1,
                     "inv_load_delay": 1500, "turbo": 1, "turbo_delay": 1,
                     "player_search": 0,
+                    "popcorn_all": int(count == 0),
+                    "guided_action": "popcorn", "guided_key": dk,
+                    "guided_count": count,
                     "search_filters": [filt] if filt else [],
                     "events": events,
                 }
-                state.macro_list.append(m)
-                from modules.macro_system import macro_save_all
-                macro_save_all()
-                self._refresh_list()
-                dlg.destroy()
+            else:
+                count = int(count_var.get() or 0)
+                filt = take_filter_var.get().strip()
+                events = _build_guided_events("take", count)
+                m = {
+                    "name": n, "type": "guided", "hotkey": "",
+                    "speed_mult": 1.0, "loop_enabled": False,
+                    "inv_type": inv_type,
+                    "mouse_speed": 0, "mouse_settle": 1,
+                    "inv_load_delay": 1500, "turbo": 1, "turbo_delay": 1,
+                    "player_search": 0,
+                    "guided_action": "take", "guided_key": "t",
+                    "guided_count": count,
+                    "search_filters": [filt] if filt else [],
+                    "events": events,
+                }
 
-            def _back():
-                dlg.destroy()
-                _step2()
+            state.macro_list.append(m)
+            from modules.macro_system import macro_save_all
+            macro_save_all()
+            self._refresh_list()
+            dlg.destroy()
 
-            tk.Button(dlg, text="\u2190 Back", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=_back).place(x=15, y=btn_y, width=80, height=26)
-            tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_save).place(x=100, y=btn_y, width=80, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=185, y=btn_y, width=80, height=26)
+    def _guided_record_filters(self, parent_dlg, inv_type, name, count):
+        parent_dlg.destroy()
+        h = 80 + count * 28 + 40
+        dlg = self._make_dlg("Guided Macro \u2014 Filters", 350, h)
+        tk.Label(dlg, text="Enter search filters", bg=BG_DARK,
+                 fg=FG_ACCENT, font=FONT_BOLD).place(x=15, y=10, width=300)
+        edits = []
+        for i in range(count):
+            y = 40 + i * 28
+            tk.Label(dlg, text=f"Filter {i+1}:", bg=BG_DARK, fg=FG_COLOR,
+                     font=FONT_DEFAULT).place(x=15, y=y, width=70)
+            e = tk.Entry(dlg, font=FONT_DEFAULT)
+            e.place(x=90, y=y, width=230, height=24)
+            edits.append(e)
+        btn_y = 40 + count * 28 + 10
 
-        def _step_record_filters():
-            dlg = self._make_dlg("Guided Macro \u2014 Filters", 320, 180)
-            tk.Label(dlg, text="How many search filters?", bg=BG_DARK,
-                     fg=FG_ACCENT, font=FONT_BOLD).place(x=15, y=15, width=280)
-            tk.Label(dlg, text="Record once per filter (0 = no filter)",
-                     bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC
-                     ).place(x=15, y=40, width=280)
-            count_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            count_edit.insert(0, "1")
-            count_edit.place(x=15, y=70, width=60, height=24)
+        def _start():
+            filters = [e.get().strip() for e in edits]
+            dlg.destroy()
+            from modules.macro_system import macro_start_guided_record
+            macro_start_guided_record(
+                name, inv_type, filters,
+                on_done=lambda m: self._on_record_done(m),
+            )
+            if state.main_gui:
+                state.main_gui.hide()
 
-            def _next():
-                fc = int(count_edit.get() or 0)
-                wizard_data["filter_count"] = fc
-                dlg.destroy()
-                if fc > 0:
-                    _step_enter_filters(fc)
-                else:
-                    wizard_data["search_filters"] = []
-                    _step_record_ready()
+        tk.Button(dlg, text="Start Recording", font=FONT_BOLD, fg=FG_ACCENT,
+                  bg=BG_COLOR, command=_start
+                  ).place(x=15, y=btn_y, width=140, height=26)
+        tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
+                  bg=BG_COLOR, command=dlg.destroy
+                  ).place(x=165, y=btn_y, width=100, height=26)
 
-            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_next).place(x=15, y=110, width=100, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=110, width=100, height=26)
-
-        def _step_enter_filters(count: int):
-            h = 100 + count * 30
-            dlg = self._make_dlg("Guided Macro \u2014 Filters", 350, h)
-            tk.Label(dlg, text="Enter search filters", bg=BG_DARK,
-                     fg=FG_ACCENT, font=FONT_BOLD).place(x=15, y=10, width=300)
-            edits = []
-            for i in range(count):
-                y = 40 + i * 28
-                tk.Label(dlg, text=f"Filter {i+1}:", bg=BG_DARK, fg=FG_COLOR,
-                         font=FONT_DEFAULT).place(x=15, y=y, width=70)
-                e = tk.Entry(dlg, font=FONT_DEFAULT)
-                e.place(x=90, y=y, width=230, height=24)
-                edits.append(e)
-
-            btn_y = 40 + count * 28 + 10
-            def _next():
-                wizard_data["search_filters"] = [e.get().strip() for e in edits]
-                dlg.destroy()
-                _step_record_ready()
-
-            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_next).place(x=15, y=btn_y, width=100, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=btn_y, width=100, height=26)
-
-        def _step_record_ready():
-            dlg = self._make_dlg("Guided Macro \u2014 Record", 320, 230)
-            tk.Label(dlg, text="Ready to Record", bg=BG_DARK, fg=FG_ACCENT,
-                     font=FONT_BOLD).place(x=15, y=10, width=280)
-            inv = wizard_data["inv_type"].capitalize()
-            fc = wizard_data.get("filter_count", 0)
-            tk.Label(dlg, text=f"Inventory: {inv}  |  Filters: {fc}",
-                     bg=BG_DARK, fg=FG_COLOR, font=FONT_DEFAULT
-                     ).place(x=15, y=40, width=280)
-            tk.Label(dlg, text="1. Click Start \u2014 we activate ARK\n"
-                     "2. Press F to open inventory, do actions\n"
-                     "3. Press F1 when done",
-                     bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL, justify="left"
-                     ).place(x=15, y=70, width=280, height=50)
-
-            tk.Label(dlg, text="Name:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=135, width=55)
-            name_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            name_edit.place(x=75, y=135, width=215, height=24)
-
-            def _start_rec():
-                n = name_edit.get().strip()
-                if not n:
-                    return
-                wizard_data["name"] = n
-                dlg.destroy()
-                from modules.macro_system import macro_start_guided_record
-                if hasattr(macro_start_guided_record, '__call__'):
-                    macro_start_guided_record(
-                        wizard_data["name"],
-                        wizard_data["inv_type"],
-                        wizard_data.get("search_filters", []),
-                        on_done=lambda m: self._on_record_done(m),
-                    )
-                if state.main_gui:
-                    state.main_gui.hide()
-
-            tk.Button(dlg, text="Start Recording", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_start_rec).place(x=15, y=175, width=140, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=165, y=175, width=100, height=26)
-
-        _step1()
 
     def _on_record_done(self, macro_dict: dict):
         if macro_dict and macro_dict.get("events"):
@@ -734,242 +887,84 @@ class TabMacro:
                 state.root.after(0, lambda: self._guided_show_save_dialog(
                     wizard_data, macro_dict.get("events", [])))
 
+
     def _combo_start(self):
-        combo_data: dict = {}
+        dlg = self._make_dlg("Link: Popcorn + Magic F", 350, 228)
+        pad_x = 16
+        y = 16
 
-        def _step_pc_count():
-            dlg = self._make_dlg("Popcorn+Magic-F \u2014 Step 1", 320, 170)
-            tk.Label(dlg, text="Popcorn Filters", bg=BG_DARK, fg=FG_ACCENT,
-                     font=FONT_BOLD).place(x=15, y=10, width=280)
-            tk.Label(dlg, text="How many items to popcorn? (0 = all, no filter)",
-                     bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC
-                     ).place(x=15, y=35, width=280)
-            tk.Label(dlg, text="Count:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=70, width=55)
-            count_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            count_edit.insert(0, "0")
-            count_edit.place(x=75, y=70, width=50, height=24)
+        tk.Label(dlg, text="Link: Popcorn + Magic F", bg=BG_DARK, fg=FG_ACCENT,
+                 font=FONT_BOLD).place(x=pad_x, y=y)
+        y += 34
 
-            def _next():
-                c = int(count_edit.get() or 0)
-                combo_data["pc_count"] = c
-                dlg.destroy()
-                if c > 0:
-                    _step_pc_filters(c)
-                else:
-                    combo_data["popcorn_filters"] = [""]
-                    _step_mf_count()
+        tk.Label(dlg, text="Popcorn filters:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=pad_x, y=y, width=120)
+        pc_var = tk.StringVar()
+        tk.Entry(dlg, textvariable=pc_var, width=22, font=FONT_DEFAULT
+                 ).place(x=140, y=y)
+        y += 26
+        tk.Label(dlg, text="comma-separated (empty = all)",
+                 bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL).place(x=140, y=y)
+        y += 22
 
-            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_next).place(x=15, y=110, width=100, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=110, width=100, height=26)
+        tk.Label(dlg, text="Magic F filters:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=pad_x, y=y, width=120)
+        mf_var = tk.StringVar()
+        tk.Entry(dlg, textvariable=mf_var, width=22, font=FONT_DEFAULT
+                 ).place(x=140, y=y)
+        y += 26
+        tk.Label(dlg, text="comma-separated",
+                 bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL).place(x=140, y=y)
+        y += 28
 
-        def _step_pc_filters(count: int):
-            h = 90 + count * 28 + 40
-            dlg = self._make_dlg("Popcorn+Magic-F \u2014 Step 2", 350, h)
-            tk.Label(dlg, text="Popcorn Filter Names", bg=BG_DARK, fg=FG_ACCENT,
-                     font=FONT_BOLD).place(x=15, y=10, width=300)
-            edits = []
-            for i in range(count):
-                y = 40 + i * 28
-                tk.Label(dlg, text=f"Pop {i+1}:", bg=BG_DARK, fg=FG_COLOR,
-                         font=FONT_DEFAULT).place(x=15, y=y, width=70)
-                e = tk.Entry(dlg, font=FONT_DEFAULT)
-                e.place(x=90, y=y, width=230, height=24)
-                edits.append(e)
+        tk.Frame(dlg, bg="#333333", height=1).place(x=pad_x, y=y, width=318)
+        y += 10
 
-            btn_y = 40 + count * 28 + 10
-            def _next():
-                combo_data["popcorn_filters"] = [
-                    e.get().strip() or "" for e in edits
-                ]
-                dlg.destroy()
-                _step_mf_count()
+        tk.Label(dlg, text="Name:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=pad_x, y=y, width=55)
+        name_var = tk.StringVar(value="PC+MF")
+        tk.Entry(dlg, textvariable=name_var, width=22, font=FONT_DEFAULT
+                 ).place(x=140, y=y)
+        y += 28
 
-            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_next).place(x=15, y=btn_y, width=100, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=btn_y, width=100, height=26)
+        def _save():
+            n = name_var.get().strip()
+            if not n:
+                return
+            pc_filters = [f.strip() for f in pc_var.get().split(",") if f.strip()]
+            if not pc_filters:
+                pc_filters = [""]
+            mf_filters = [f.strip() for f in mf_var.get().split(",") if f.strip()]
+            m = {
+                "name": n,
+                "type": "combo",
+                "hotkey": "",
+                "popcorn_filters": pc_filters,
+                "magic_f_filters": mf_filters,
+                "take_count": 0,
+                "take_filter": "",
+            }
+            state.macro_list.append(m)
+            from modules.macro_system import macro_save_all
+            macro_save_all()
+            self._refresh_list()
+            dlg.destroy()
 
-        def _step_mf_count():
-            dlg = self._make_dlg("Popcorn+Magic-F \u2014 Step 3", 320, 150)
-            tk.Label(dlg, text="Magic F Give Filters", bg=BG_DARK, fg=FG_ACCENT,
-                     font=FONT_BOLD).place(x=15, y=10, width=280)
-            tk.Label(dlg, text="How many items to give? (0 = skip Magic F)",
-                     bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC
-                     ).place(x=15, y=35, width=280)
-            tk.Label(dlg, text="Count:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=65, width=55)
-            count_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            count_edit.insert(0, "1")
-            count_edit.place(x=75, y=65, width=50, height=24)
-
-            def _next():
-                c = int(count_edit.get() or 0)
-                combo_data["mf_count"] = c
-                dlg.destroy()
-                if c > 0:
-                    _step_mf_filters(c)
-                else:
-                    combo_data["magic_f_filters"] = []
-                    _step_take()
-
-            def _back():
-                dlg.destroy()
-                pc_c = combo_data.get("pc_count", 0)
-                if pc_c > 0:
-                    _step_pc_filters(pc_c)
-                else:
-                    _step_pc_count()
-
-            tk.Button(dlg, text="\u2190 Back", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=_back).place(x=15, y=100, width=80, height=26)
-            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_next).place(x=100, y=100, width=80, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=185, y=100, width=80, height=26)
-
-        def _step_mf_filters(count: int):
-            h = 90 + count * 28 + 40
-            dlg = self._make_dlg("Popcorn+Magic-F \u2014 Step 4", 350, h)
-            tk.Label(dlg, text="Magic F Give Filter Names", bg=BG_DARK,
-                     fg=FG_ACCENT, font=FONT_BOLD).place(x=15, y=10, width=300)
-            edits = []
-            for i in range(count):
-                y = 40 + i * 28
-                tk.Label(dlg, text=f"Give {i+1}:", bg=BG_DARK, fg=FG_COLOR,
-                         font=FONT_DEFAULT).place(x=15, y=y, width=70)
-                e = tk.Entry(dlg, font=FONT_DEFAULT)
-                e.place(x=90, y=y, width=230, height=24)
-                edits.append(e)
-
-            btn_y = 40 + count * 28 + 10
-            def _next():
-                combo_data["magic_f_filters"] = [
-                    e.get().strip() for e in edits if e.get().strip()
-                ]
-                dlg.destroy()
-                _step_take()
-
-            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_next).place(x=15, y=btn_y, width=100, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=btn_y, width=100, height=26)
-
-        def _step_take():
-            dlg = self._make_dlg("Popcorn+Magic-F \u2014 Step 5", 340, 220)
-            tk.Label(dlg, text="Take Mode (optional)", bg=BG_DARK, fg=FG_ACCENT,
-                     font=FONT_BOLD).place(x=15, y=10, width=300)
-            tk.Label(dlg, text="F at vault \u2192 take N items \u2192 close. Set 0 to skip.",
-                     bg=BG_DARK, fg=FG_DIM, font=FONT_SMALL_ITALIC
-                     ).place(x=15, y=35, width=300)
-
-            tk.Label(dlg, text="Items per F:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=70, width=85)
-            take_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            take_edit.insert(0, "0")
-            take_edit.place(x=105, y=70, width=50, height=24)
-
-            tk.Label(dlg, text="Search filter:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=100, width=85)
-            take_filter_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            take_filter_edit.place(x=105, y=100, width=200, height=24)
-
-            def _next():
-                combo_data["take_count"] = int(take_edit.get() or 0)
-                combo_data["take_filter"] = take_filter_edit.get().strip()
-                dlg.destroy()
-                _step_save()
-
-            def _back():
-                dlg.destroy()
-                mf_c = combo_data.get("mf_count", 0)
-                if mf_c > 0:
-                    _step_mf_filters(mf_c)
-                else:
-                    _step_mf_count()
-
-            tk.Button(dlg, text="\u2190 Back", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=_back).place(x=15, y=160, width=80, height=26)
-            tk.Button(dlg, text="Next \u2192", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_next).place(x=100, y=160, width=80, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=185, y=160, width=80, height=26)
-
-        def _step_save():
-            dlg = self._make_dlg("Save Popcorn+Magic-F Combo", 320, 200)
-            tk.Label(dlg, text="Save Combo Macro", bg=BG_DARK, fg=FG_ACCENT,
-                     font=FONT_BOLD).place(x=15, y=10, width=280)
-
-            pc_summary = ", ".join(f or "<all>" for f in combo_data.get("popcorn_filters", []))
-            mf_summary = ", ".join(combo_data.get("magic_f_filters", [])) or "(none)"
-            tk.Label(dlg, text=f"Popcorn: {pc_summary}", bg=BG_DARK, fg=FG_DIM,
-                     font=FONT_SMALL).place(x=15, y=35, width=280)
-            tk.Label(dlg, text=f"Magic F: {mf_summary}", bg=BG_DARK, fg=FG_DIM,
-                     font=FONT_SMALL).place(x=15, y=50, width=280)
-
-            tk.Label(dlg, text="Name:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=75, width=55)
-            name_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            name_edit.place(x=75, y=75, width=215, height=24)
-
-            tk.Label(dlg, text="Hotkey:", bg=BG_DARK, fg=FG_COLOR,
-                     font=FONT_DEFAULT).place(x=15, y=105, width=55)
-            hk_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-            hk_edit.place(x=75, y=105, width=100, height=24)
-            tk.Button(dlg, text="Detect", font=FONT_SMALL, fg=FG_COLOR, bg=BG_COLOR,
-                      command=lambda: self._detect_key_into(dlg, hk_edit)
-                      ).place(x=180, y=105, width=75, height=24)
-
-            def _save():
-                n = name_edit.get().strip()
-                if not n:
-                    return
-                m = {
-                    "name": n,
-                    "type": "combo",
-                    "hotkey": hk_edit.get().strip().lower(),
-                    "popcorn_filters": combo_data.get("popcorn_filters", [""]),
-                    "magic_f_filters": combo_data.get("magic_f_filters", []),
-                    "take_count": combo_data.get("take_count", 0),
-                    "take_filter": combo_data.get("take_filter", ""),
-                }
-                state.macro_list.append(m)
-                from modules.macro_system import macro_save_all
-                macro_save_all()
-                self._refresh_list()
-                dlg.destroy()
-
-            tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT,
-                      bg=BG_COLOR, command=_save).place(x=15, y=148, width=100, height=26)
-            tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
-                      bg=BG_COLOR, command=dlg.destroy).place(x=120, y=148, width=100, height=26)
-
-        _step_pc_count()
+        tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT,
+                  bg=BG_COLOR, command=_save).place(x=pad_x, y=y, width=100, height=26)
+        tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
+                  bg=BG_COLOR, command=dlg.destroy).place(x=200, y=y, width=100, height=26)
 
     def _show_help(self):
         from gui.dialogs import show_help_dialog
-        show_help_dialog("Macro Tab \u2014 Quick Reference",
-            "CREATING MACROS\n"
-            "+ Guided \u2192 Take: click+T items from vault grid (set slot count)\n"
-            "+ Guided \u2192 Popcorn: hover+drop items from grid (set slot count)\n"
-            "+ Guided \u2192 Record: manually record clicks/keys in inventory\n"
-            "+ Key Repeat: spam keys on interval (e.g. yuty roar)\n"
-            "+ Popcorn+MagicF: drop items then give to trough\n\n"
-            "USING MACROS\n"
-            "Select macro \u2192 F3 or Start \u2192 activates in ARK\n"
-            "F at inventory \u2192 runs macro (Take/Popcorn/Record)\n"
-            "Q \u2192 toggle single item mode (take 1 instead of all)\n"
-            "Z \u2192 cycle to next macro  |  F1 \u2192 stop / show UI\n\n"
+        show_help_dialog("Macro Tab \u2014 Help",
+            "CONTROLS\n"
+            "F3 / Start \u2192 arm selected macro\n"
+            "F \u2192 run at inventory  |  Q \u2192 cycle / single item\n"
+            "Z \u2192 next macro  |  F1 \u2192 stop & show UI\n\n"
             "COMBO (Popcorn+MagicF)\n"
-            "F \u2192 open inv & popcorn  |  R \u2192 close inv, stay armed\n"
-            "Q \u2192 swap Popcorn \u2194 MagicF  |  Z \u2192 exit combo\n"
-            "MagicF: F at trough \u2192 filter+give \u2192 auto-close \u2192 repeat\n\n"
-            "MANAGING\n"
-            "Edit \u2192 change settings / re-record actions\n"
-            "Tune \u2192 binary search for fastest reliable speed\n"
-            "\u25b2\u25bc \u2192 reorder  |  Delete \u2192 remove macro",
+            "F \u2192 open inv & drop/give  |  R \u2192 next MF filter\n"
+            "Q \u2192 swap Popcorn \u2194 MagicF  |  Z \u2192 exit",
             self.parent)
 
     def _play_selected(self):
@@ -1080,22 +1075,26 @@ class TabMacro:
 
     def _edit_repeat(self, m: dict):
         from modules.macro_system import macro_save_all
-        dlg = self._make_dlg("Edit Key Repeat", 270, 240)
+        dlg = self._make_dlg("Edit Key Repeat", 350, 416)
         key_list = list(m.get("repeat_keys", []))
+        pad_x = 16
+        y = 16
 
         tk.Label(dlg, text=f"Edit: {m['name']}", bg=BG_DARK, fg=FG_ACCENT,
-                 font=FONT_BOLD).place(x=15, y=10, width=240)
+                 font=FONT_BOLD).place(x=pad_x, y=y)
+        y += 30
 
         tk.Label(dlg, text="Name:", bg=BG_DARK, fg=FG_COLOR,
-                 font=FONT_DEFAULT).place(x=15, y=42, width=55)
+                 font=FONT_DEFAULT).place(x=pad_x, y=y)
         name_edit = tk.Entry(dlg, font=FONT_DEFAULT)
         name_edit.insert(0, m["name"])
-        name_edit.place(x=75, y=42, width=165, height=24)
+        name_edit.place(x=130, y=y, width=190, height=24)
+        y += 30
 
         tk.Label(dlg, text="Keys:", bg=BG_DARK, fg=FG_COLOR,
-                 font=FONT_DEFAULT).place(x=15, y=72, width=55)
+                 font=FONT_DEFAULT).place(x=pad_x, y=y)
         key_display = tk.Entry(dlg, font=FONT_DEFAULT, state="readonly")
-        key_display.place(x=75, y=72, width=100, height=24)
+        key_display.place(x=130, y=y, width=120, height=24)
         key_display.configure(state="normal")
         key_display.insert(0, ", ".join(key_list))
         key_display.configure(state="readonly")
@@ -1147,56 +1146,112 @@ class TabMacro:
             key_display.configure(state="readonly")
 
         tk.Button(dlg, text="Add", font=FONT_SMALL, fg=FG_COLOR, bg=BG_COLOR,
-                  command=_add_key).place(x=180, y=72, width=35, height=24)
+                  command=_add_key).place(x=260, y=y, width=35, height=24)
         tk.Button(dlg, text="X", font=FONT_SMALL, fg=FG_COLOR, bg=BG_COLOR,
-                  command=_clear_keys).place(x=218, y=72, width=22, height=24)
+                  command=_clear_keys).place(x=298, y=y, width=22, height=24)
+        y += 24
+        tk.Label(dlg, text="Q cycles between keys during play", bg=BG_DARK,
+                 fg=FG_DIM, font=FONT_SMALL_ITALIC).place(x=130, y=y)
+        y += 22
 
-        tk.Label(dlg, text="Every:", bg=BG_DARK, fg=FG_COLOR,
-                 font=FONT_DEFAULT).place(x=15, y=102, width=55)
+        tk.Label(dlg, text="Interval (ms):", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=pad_x, y=y)
         interval_edit = tk.Entry(dlg, font=FONT_DEFAULT)
-        interval_edit.insert(0, str(m.get("repeat_interval", 2000)))
-        interval_edit.place(x=75, y=102, width=65, height=24)
-        tk.Label(dlg, text="ms", bg=BG_DARK, fg=FG_DIM,
-                 font=FONT_SMALL).place(x=145, y=102, width=20)
-
-        spam_var = tk.BooleanVar(value=bool(m.get("repeat_spam", 0)))
-        move_var = tk.BooleanVar(value=bool(m.get("repeat_movement", 1)))
-        def _spam_toggle():
-            if spam_var.get(): move_var.set(False)
-        def _move_toggle():
-            if move_var.get(): spam_var.set(False)
-        tk.Checkbutton(dlg, text="Spam", variable=spam_var,
-                       command=_spam_toggle, **CB_OPTS).place(x=15, y=130, width=70)
-        tk.Checkbutton(dlg, text="Move between", variable=move_var,
-                       command=_move_toggle, **CB_OPTS).place(x=90, y=130, width=120)
+        display_interval = 0 if m.get("repeat_spam", 0) else m.get(
+            "repeat_interval", 600)
+        interval_edit.insert(0, str(display_interval))
+        interval_edit.place(x=130, y=y, width=65, height=24)
+        tk.Label(dlg, text="(0 = hold)", bg=BG_DARK, fg=FG_DIM,
+                 font=FONT_SMALL).place(x=200, y=y + 2)
+        y += 30
 
         tk.Label(dlg, text="Bind:", bg=BG_DARK, fg=FG_COLOR,
-                 font=FONT_DEFAULT).place(x=15, y=158, width=55)
+                 font=FONT_DEFAULT).place(x=pad_x, y=y)
         bind_edit = tk.Entry(dlg, font=FONT_DEFAULT)
         bind_edit.insert(0, m.get("hotkey", ""))
-        bind_edit.place(x=75, y=158, width=100, height=24)
+        bind_edit.place(x=130, y=y, width=80, height=24)
         tk.Button(dlg, text="Detect", font=FONT_SMALL, fg=FG_COLOR, bg=BG_COLOR,
                   command=lambda: self._detect_key_into(dlg, bind_edit)
-                  ).place(x=180, y=158, width=60, height=24)
+                  ).place(x=215, y=y, width=60, height=24)
+        y += 34
+
+        tk.Frame(dlg, bg="#333333", height=1).place(x=pad_x, y=y, width=318)
+        y += 8
+
+        has_pc = bool(m.get("popcorn_filters"))
+        pc_var = tk.BooleanVar(value=has_pc)
+        pc_check = tk.Checkbutton(dlg, text="Popcorn after repeat",
+                                  variable=pc_var, bg=BG_DARK, fg=FG_COLOR,
+                                  selectcolor=BG_DARK, activebackground=BG_DARK,
+                                  activeforeground=FG_COLOR, font=FONT_DEFAULT,
+                                  anchor="w")
+        pc_check.place(x=pad_x, y=y)
+        y += 26
+
+        pc_frame = tk.Frame(dlg, bg=BG_DARK)
+        tk.Label(pc_frame, text="Drop count:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=0, y=0)
+        pc_drop_var = tk.StringVar(
+            value=str(m.get("popcorn_drop_count", 0)))
+        tk.Entry(pc_frame, textvariable=pc_drop_var, width=6,
+                 font=FONT_DEFAULT).place(x=114, y=0)
+        tk.Label(pc_frame, text="(0 = all)", bg=BG_DARK, fg=FG_DIM,
+                 font=FONT_SMALL).place(x=170, y=2)
+
+        tk.Label(pc_frame, text="Drop key:", bg=BG_DARK, fg=FG_COLOR,
+                 font=FONT_DEFAULT).place(x=0, y=28)
+        dk = getattr(state, "pc_drop_key", "") or "?"
+        pc_drop_key_lbl = tk.Label(pc_frame, text=dk.upper(),
+                                   bg=BG_DARK, fg=FG_ACCENT, font=FONT_BOLD,
+                                   anchor="w")
+        pc_drop_key_lbl.place(x=114, y=28)
+        pc_frame_y = y
+
+        save_btn = tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT,
+                             bg=BG_COLOR)
+        cancel_btn = tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR,
+                               bg=BG_COLOR, command=dlg.destroy)
+
+        def _toggle_pc(*_):
+            if pc_var.get():
+                pc_drop_key_lbl.configure(
+                    text=(getattr(state, "pc_drop_key", "") or "?").upper())
+                pc_frame.place(x=pad_x + 16, y=pc_frame_y,
+                               width=302, height=60)
+                btn_y = pc_frame_y + 66
+            else:
+                pc_frame.place_forget()
+                btn_y = pc_frame_y + 4
+            save_btn.place(x=pad_x, y=btn_y, width=100, height=26)
+            cancel_btn.place(x=200, y=btn_y, width=100, height=26)
+            dlg.geometry(f"350x{btn_y + 42}")
 
         def _save():
             n = name_edit.get().strip()
             if not n or not key_list:
                 return
+            interval = int(interval_edit.get() or 600)
             m["name"] = n
             m["hotkey"] = bind_edit.get().strip().lower()
             m["repeat_keys"] = list(key_list)
-            m["repeat_interval"] = int(interval_edit.get() or 2000)
-            m["repeat_spam"] = int(spam_var.get())
-            m["repeat_movement"] = int(move_var.get())
+            m["repeat_interval"] = interval
+            m["repeat_spam"] = int(interval == 0)
+            if pc_var.get():
+                dc = int(pc_drop_var.get() or 0)
+                m["popcorn_filters"] = [""]
+                m["popcorn_style"] = "all" if dc == 0 else "amount"
+                m["popcorn_drop_count"] = dc
+            else:
+                m["popcorn_filters"] = []
+                m["popcorn_style"] = "all"
+                m["popcorn_drop_count"] = 0
             macro_save_all()
             self._refresh_list()
             dlg.destroy()
 
-        tk.Button(dlg, text="Save", font=FONT_BOLD, fg=FG_ACCENT, bg=BG_COLOR,
-                  command=_save).place(x=15, y=196, width=100, height=26)
-        tk.Button(dlg, text="Cancel", font=FONT_BOLD, fg=FG_COLOR, bg=BG_COLOR,
-                  command=dlg.destroy).place(x=120, y=196, width=100, height=26)
+        save_btn.configure(command=_save)
+        pc_var.trace_add("write", _toggle_pc)
+        _toggle_pc()
 
     def _edit_speed_macro(self, m: dict):
         from modules.macro_system import macro_save_all
@@ -1680,7 +1735,8 @@ class TabMacro:
             if m["type"] in ("recorded", "pyro", "guided"):
                 speed = f"{m.get('speed_mult', 1.0):.1f}x"
             elif m["type"] == "repeat":
-                speed = f"{m.get('repeat_interval', 1000)}ms"
+                iv = m.get("repeat_interval", 1000)
+                speed = "Hold" if m.get("repeat_spam", 0) or iv == 0 else f"{iv}ms"
             macros.append({
                 "name": m.get("name", ""),
                 "type": m.get("type", ""),

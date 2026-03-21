@@ -392,7 +392,7 @@ class AIOApp:
             self.main_window.hide()
 
     def _f3_handler(self):
-        if state.macro_tab_active and state.gui_visible:
+        if state.macro_tab_active:
             tab = getattr(state, "_tab_macro", None)
             if tab:
                 idx = tab.get_selected_index()
@@ -431,6 +431,8 @@ class AIOApp:
         state.ob_download_armed = False
         state.ob_download_running = False
         state.macro_armed = False
+        state.macro_popcorn_armed = False
+        state.macro_popcorn_macro = None
         state.macro_playing = False
         state.combo_running = False
         state.quick_feed_mode = 0
@@ -520,6 +522,12 @@ class AIOApp:
             quick_feed.quick_feed_f_pressed()
         elif state.gmk_mode != "off":
             grab_my_kit.gmk_f_pressed()
+        elif state.macro_armed and state.macro_popcorn_armed and state.macro_popcorn_macro:
+            threading.Thread(
+                target=macro_system._repeat_popcorn_sequence,
+                args=(state.macro_popcorn_macro,),
+                daemon=True,
+            ).start()
         elif state.macro_armed or state.combo_armed:
             sel = state.macro_list[state.macro_selected_idx - 1] if state.macro_list else {}
             if sel.get("hotkey", "").lower() == "f":
@@ -739,8 +747,10 @@ class AIOApp:
 
         if tab_name == "Macro" and self.hotkeys:
             macro_system.macro_register_hotkeys(True)
+            self.hotkeys.register("z", self._z_handler, suppress=True, passthrough=False)
         else:
             macro_system.macro_block_all_hotkeys()
+            self.hotkeys.register("z", self._z_handler, suppress=False, passthrough=True)
 
     def _load_lists(self):
         from util.list_manager import ListManager
