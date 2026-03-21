@@ -2,6 +2,17 @@
 
 ---
 
+### Popcorn OCR + macro tab improvements
+- OCR detects tame vs storage inventories, uses weight for tames
+- Tame popcorn stops at saddle weight via weight OCR
+- Crafting inventory OCR strips weight data from slot count
+- Popcorn count=0 drops everything w OCR instead of keybinds
+- Guided macros save as grid params instead of per-slot events in config
+- Repeat popcorn F key arms/disarms properly w F1
+- Default config updated w all sections for fresh installs
+
+---
+
 ### Added GG art animation
 - GG art animated on join sim tab. Optional, delete `gui/art_anim.py` for static.
 
