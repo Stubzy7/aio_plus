@@ -42,7 +42,12 @@ def _run_ocr(img: Image.Image, lang: str = "en") -> str:
         async def _await_result():
             return await winocr.recognize_pil(img, lang)
 
-        result = _get_ocr_loop().run_until_complete(_await_result())
+        coro = _await_result()
+        try:
+            result = _get_ocr_loop().run_until_complete(coro)
+        except Exception:
+            coro.close()
+            raise
 
         if result and hasattr(result, "text"):
             return result.text

@@ -77,20 +77,21 @@ def pc_is_tame_inventory() -> bool:
         _pc_log(f"TameDetect: PLAYER inv at ({px},{py}) color=0x{pc:06X} — not tame")
         return False
 
-    # Check tame pixel
+    # Check tame pixel — tame inventories have a bright header (XP bar / level)
+    # at this position, while storage inventories are dark blue/teal.
+    # Use brightness check (more robust than exact color) with color match fallback.
     x = int(state.pc_tame_detect_x)
     y = int(state.pc_tame_detect_y)
     color = px_get(x, y)
     r = (color >> 16) & 0xFF
     g = (color >> 8) & 0xFF
     b = color & 0xFF
-    tr = (state.pc_tame_detect_color >> 16) & 0xFF
-    tg = (state.pc_tame_detect_color >> 8) & 0xFF
-    tb = state.pc_tame_detect_color & 0xFF
-    tol = state.pc_tame_detect_tol
-    matched = (abs(r - tr) <= tol and abs(g - tg) <= tol and abs(b - tb) <= tol)
+    brightness = r + g + b
+    matched = brightness > 350
     if matched:
-        _pc_log(f"TameDetect: TAME at ({x},{y}) color=0x{color:06X}")
+        _pc_log(f"TameDetect: TAME at ({x},{y}) color=0x{color:06X} brightness={brightness}")
+    else:
+        _pc_log(f"TameDetect: NOT tame at ({x},{y}) color=0x{color:06X} brightness={brightness}")
     return matched
 
 
@@ -260,7 +261,8 @@ def pc_check_storage_empty() -> int:
             cleaned = re.sub(r"[oO]", "0", raw_text)
             cleaned = re.sub(r"[Il|]", "1", cleaned)
             cleaned = re.sub(r"s(?=\d)", "5", cleaned)
-            cleaned = re.sub(r"\d+\.\d+\s*/?\s*\d*\.?\d*", "", cleaned)
+            cleaned = re.sub(r"\d+\.\d+\s*/\s*\d+\.\d+", "", cleaned)
+            cleaned = re.sub(r"\.0(?!\d)", "", cleaned)
             cleaned = re.sub(r"\s+", " ", cleaned)
 
             m = re.search(r"(-?\d+)\s*/\s*(\d+)", cleaned)
@@ -269,11 +271,11 @@ def pc_check_storage_empty() -> int:
                 max_val = int(m.group(2))
                 if val < 0:
                     val = 0
-                if val == 0 and len(m.group(1)) > 1:
+                if val == 0 and len(m.group(1)) > 1 and not m.group(1).startswith("-"):
                     _pc_log(f"OCR: suspicious 0 from [{m.group(1)}] raw=[{raw_text.strip()}] — retrying")
                     time.sleep(0.080)
                     continue
-                if 6 <= max_val <= 999:
+                if 6 <= max_val <= 9999:
                     _pc_log(f"OCR: {val}/{max_val} raw=[{raw_text.strip()}]")
                     return val
 
